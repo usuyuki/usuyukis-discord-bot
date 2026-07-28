@@ -8,10 +8,6 @@ import (
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/notifychannel"
 )
 
-// haikuPattern / tankaPattern は句ごとの拍数の列。domain.Splitへ渡す判定パターン
-var haikuPattern = []int{5, 7, 5}
-var tankaPattern = []int{5, 7, 5, 7, 7}
-
 // UseCase は俳句（5-7-5）・短歌（5-7-5-7-7）投稿の検知・通知に関するアプリケーションロジック
 type UseCase struct {
 	analyzer      MorphAnalyzer
@@ -57,10 +53,10 @@ func (u *UseCase) Detect(ctx context.Context, guildID, fallbackChannelID, messag
 // judgeAndSplit はwordsを俳句・短歌それぞれのパターンで判定し、該当した方の
 // ラベル（"俳句"/"短歌"）と句ごとに分割した文字列を返す。どちらにも該当しなければok=false
 func judgeAndSplit(words []haiku.Word) (label string, phrases []string, ok bool) {
-	if phrases, ok := haiku.Split(words, haikuPattern); ok {
+	if phrases, ok := haiku.Split(words, haiku.HaikuPattern); ok {
 		return "俳句", phrases, true
 	}
-	if phrases, ok := haiku.Split(words, tankaPattern); ok {
+	if phrases, ok := haiku.Split(words, haiku.TankaPattern); ok {
 		return "短歌", phrases, true
 	}
 	return "", nil, false

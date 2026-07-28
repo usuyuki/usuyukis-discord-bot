@@ -47,6 +47,12 @@ Bot機能を1つ追加する際は以下の順序で実装する（詳細は [ad
 - `domain`/`usecase` 層のテストは外部依存（DB, Discord API, kagome辞書）なしで完結させる。`usecase` 層はport interfaceに対するフェイク実装（インメモリ）でテストする
 - `infrastructure` 層のうち実データ検証が必要なもの（`postgres`, `morph`）は実際のライブラリ・DBを使ったテストを書いてよい
 
+## Lint・テストコマンド
+
+`make check`（`lint` → `vet` → `test`）でCI相当のチェックを一括実行できる。個々のコマンドは `Makefile` を参照。golangci-lintは `go.mod` の `tool` ディレクティブで管理しており、`go tool golangci-lint` で実行できる。設定は `.golangci.yml`。
+
+コードを変更したら、コミット前に `make check` を通すこと。
+
 ## コメント方針
 
 - 作成した関数にはコメントを入れて何をしているかを書く

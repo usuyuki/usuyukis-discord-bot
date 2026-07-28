@@ -87,7 +87,11 @@ func run() error {
 	if err := session.Open(); err != nil {
 		return err
 	}
-	defer session.Close()
+	defer func() {
+		if cerr := session.Close(); cerr != nil {
+			log.Printf("bot: failed to close discord session: %v", cerr)
+		}
+	}()
 	log.Println("bot: discord session opened")
 
 	adminServer, err := admin.NewServer(
@@ -99,11 +103,10 @@ func run() error {
 		return err
 	}
 
-	// 管理画面は認証機構を持たない。docker-compose.ymlでホスト側の
-	// 127.0.0.1にのみポートを公開する運用を前提としており（コンテナ内部で
-	// 0.0.0.0以外にbindするとDockerのポートマッピングが機能しなくなるため
-	// ここでは全interfaceにbindする）、Docker以外の環境で直接起動する場合は
-	// 呼び出し側でネットワーク到達性を制限すること
+	// 管理画面は認証機構を持たない。コンテナ内部では0.0.0.0以外にbindすると
+	// Dockerのポートマッピングが機能しなくなるためここでは全interfaceにbindし、
+	// docker-compose.yml側でホストの全interfaceへポート公開してLAN内アクセスを
+	// 許可する運用を前提としている。インターネットへは公開しないこと
 	httpServer := &http.Server{
 		Addr:    ":" + cfg.AdminPort,
 		Handler: adminServer.Handler(),

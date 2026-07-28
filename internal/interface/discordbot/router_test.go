@@ -110,4 +110,18 @@ func TestRouter_DispatchEmojiUpdate(t *testing.T) {
 			t.Errorf("handler did not receive expected event: %v", h.received)
 		}
 	})
+
+	t.Run("異常系: dev mode設定時は絵文字更新イベントはチャンネル概念を持たないため配送されない", func(t *testing.T) {
+		r := NewRouter()
+		r.SetDevChannelID("dev-channel")
+		h := &recordingEmojiHandler{}
+		r.RegisterEmojiUpdateHandler(h)
+
+		ev := IncomingEmojiUpdate{GuildID: "g1", AddedEmojiNames: []string{":new:"}}
+		r.DispatchEmojiUpdate(context.Background(), ev)
+
+		if len(h.received) != 0 {
+			t.Errorf("handler should not receive emoji update events while dev mode is enabled, got %v", h.received)
+		}
+	})
 }

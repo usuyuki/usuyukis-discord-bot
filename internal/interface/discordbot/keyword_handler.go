@@ -21,10 +21,10 @@ func NewKeywordHandler(uc *keywordUC.UseCase, sender MessageSender) *KeywordHand
 	return &KeywordHandler{uc: uc, sender: sender}
 }
 
-// HandleMessage はBotへのメンションであればコマンドとして解釈し、
-// そうでなければ通常メッセージとして登録済みキーワードとのマッチを試みる
+// HandleMessage はBotへのメンション（構造化メンション・テキストの@Rakuro表記いずれも含む）
+// であればコマンドとして解釈し、そうでなければ通常メッセージとして登録済みキーワードとのマッチを試みる
 func (h *KeywordHandler) HandleMessage(ctx context.Context, msg IncomingMessage) error {
-	if msg.MentionsBotID {
+	if msg.MentionsRakuro() {
 		return h.handleCommand(ctx, msg)
 	}
 	return h.handleAutoReply(ctx, msg)
@@ -103,7 +103,7 @@ func parseKeywordCommand(content string) *keywordCommand {
 		if strings.HasPrefix(f, "<@") && strings.HasSuffix(f, ">") {
 			continue
 		}
-		if strings.EqualFold(f, "@rakuro") {
+		if isRakuroMentionToken(f) {
 			continue
 		}
 		filtered = append(filtered, f)
@@ -136,6 +136,19 @@ func parseKeywordCommand(content string) *keywordCommand {
 	return cmd
 }
 
+// isRakuroMentionToken はfieldが"@Rakuro"/"@rakuro"表記（前後に句読点等が付く
+// "@Rakuro,"や"@Rakuro:"のような形も含む）かどうかを判定する。
+// トークンの先頭が"@rakuro"で、続く残り部分が英数字・アンダースコアを含まない
+// （＝別の単語に連結していない）場合のみ真とする
+func isRakuroMentionToken(field string) bool {
+	lower := strings.ToLower(field)
+	const target = "@rakuro"
+	if !strings.HasPrefix(lower, target) {
+		return false
+	}
+	return isWordBoundaryRune(lower, len(target))
+}
+
 func formatKeywordList(keywords []keyword.Keyword) string {
 	if len(keywords) == 0 {
 		return "登録済みキーワードはありません"
@@ -143,7 +156,7 @@ func formatKeywordList(keywords []keyword.Keyword) string {
 	var b strings.Builder
 	b.WriteString("登録済みキーワード:\n")
 	for _, k := range keywords {
-		b.WriteString(fmt.Sprintf("- %s → %s\n", k.Word, k.Response))
+		fmt.Fprintf(&b, "- %s → %s\n", k.Word, k.Response)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

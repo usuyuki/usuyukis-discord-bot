@@ -65,6 +65,11 @@ func TestKeywordHandler_HandleMessage_Command(t *testing.T) {
 			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, Content: "<@bot> keyword remove"},
 			wantSentSub: "使い方",
 		},
+		{
+			name:        "正常系: 構造化メンションでなくテキストの@Rakuro表記でもkeywordコマンドとして解釈される",
+			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false, IsAdmin: true, Content: "@Rakuro keyword add ぬるぽ ガッ"},
+			wantSentSub: "登録しました",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -175,6 +180,16 @@ func TestParseKeywordCommand(t *testing.T) {
 		{
 			name:    "異常系: 本文が空の場合はnilを返す",
 			content: "",
+			want:    nil,
+		},
+		{
+			name:    "正常系: @Rakuroに句読点が付いていてもメンショントークンとして除去して解析できる",
+			content: "@Rakuro, keyword add ぬるぽ ガッ",
+			want:    &keywordCommand{Sub: "add", Word: "ぬるぽ", Response: "ガッ"},
+		},
+		{
+			name:    "異常系: @Rakuroが別の単語に連結している場合は除去せず、keyword以外の先頭語としてnilを返す",
+			content: "@Rakuroski keyword add ぬるぽ ガッ",
 			want:    nil,
 		},
 	}

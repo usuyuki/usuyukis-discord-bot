@@ -41,13 +41,18 @@ func TestDakokuHandler_HandleMessage(t *testing.T) {
 			wantContent: "2026-07-28 14:32:10",
 		},
 		{
-			name:       "異常系: 本文に@Rakuro/@rakuroが含まれなければ何もしない",
-			msg:        IncomingMessage{ChannelID: "c1", MentionsBotID: true, Content: "こんにちは"},
+			name:       "異常系: Botへのメンションが一切含まれなければ何もしない",
+			msg:        IncomingMessage{ChannelID: "c1", Content: "こんにちは"},
 			wantCalled: false,
 		},
 		{
 			name:       "異常系: keywordコマンドであれば打刻は反応しない",
 			msg:        IncomingMessage{ChannelID: "c1", Content: "@Rakuro keyword add ぬるぽ ガッ"},
+			wantCalled: false,
+		},
+		{
+			name:       "異常系: 無関係な単語に@rakuroが連結しているだけなら反応しない",
+			msg:        IncomingMessage{ChannelID: "c1", Content: "check https://example.com/@rakuromusic"},
 			wantCalled: false,
 		},
 	}

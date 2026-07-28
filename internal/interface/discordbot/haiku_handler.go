@@ -17,10 +17,11 @@ func NewHaikuHandler(uc *haikuUC.UseCase) *HaikuHandler {
 	return &HaikuHandler{uc: uc}
 }
 
-// HandleMessage はBotへのメンションでない通常メッセージを俳句・短歌判定にかける。
+// HandleMessage はBotへのメンション（構造化メンション・テキストの@Rakuro表記いずれも含む）
+// でない通常メッセージを俳句・短歌判定にかける。
 // 通知先が未登録の場合は投稿元チャンネルへfallbackする
 func (h *HaikuHandler) HandleMessage(ctx context.Context, msg IncomingMessage) error {
-	if msg.MentionsBotID {
+	if msg.MentionsRakuro() {
 		return nil
 	}
 	_, err := h.uc.Detect(ctx, msg.GuildID, msg.ChannelID, msg.Content)

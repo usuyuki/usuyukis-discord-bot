@@ -50,8 +50,14 @@ func (r *Router) DispatchMessage(ctx context.Context, msg IncomingMessage) {
 	}
 }
 
-// DispatchEmojiUpdate は登録済み全EmojiUpdateHandlerへ絵文字更新イベントを配送する
+// DispatchEmojiUpdate は登録済み全EmojiUpdateHandlerへ絵文字更新イベントを配送する。
+// 絵文字更新はチャンネルを持たないギルド単位のイベントのためdevChannelIDとの比較はできないが、
+// 「dev mode中は指定チャンネル以外への誤爆を防ぐ」という目的に合わせ、dev modeが有効な間は
+// 絵文字通知そのものを配送しない
 func (r *Router) DispatchEmojiUpdate(ctx context.Context, ev IncomingEmojiUpdate) {
+	if r.devChannelID != "" {
+		return
+	}
 	for _, h := range r.emojiUpdateHandlers {
 		if err := h.HandleEmojiUpdate(ctx, ev); err != nil {
 			log.Printf("discordbot: emoji update handler error: %v", err)
