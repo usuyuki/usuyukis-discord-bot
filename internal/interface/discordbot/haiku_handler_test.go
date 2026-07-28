@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/haiku"
-	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/notifychannel"
 	haikuUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/haiku"
 )
 
@@ -13,11 +12,6 @@ type fakeAnalyzer struct{ result []haiku.Word }
 
 func (f *fakeAnalyzer) AnalyzeWords(text string) ([]haiku.Word, error) { return f.result, nil }
 
-type fakeChannelFinder struct{ ok bool }
-
-func (f *fakeChannelFinder) Find(ctx context.Context, guildID string, purpose notifychannel.Purpose) (notifychannel.NotifyChannel, bool, error) {
-	return notifychannel.NotifyChannel{}, f.ok, nil
-}
 
 func TestHaikuHandler_HandleMessage(t *testing.T) {
 	haikuWords := []haiku.Word{
@@ -44,13 +38,13 @@ func TestHaikuHandler_HandleMessage(t *testing.T) {
 			wantSentCount: 1,
 		},
 		{
-			name:          "異常系: Botへのメンションは俳句判定の対象外",
+			name:          "異常系: Botへのメンションは川柳判定の対象外",
 			msg:           IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true},
 			words:         haikuWords,
 			wantSentCount: 0,
 		},
 		{
-			name:          "異常系: 構造化メンションでなくテキストの@Rakuro表記でも俳句判定の対象外（打刻Botとの二重応答防止）",
+			name:          "異常系: 構造化メンションでなくテキストの@Rakuro表記でも川柳判定の対象外（打刻Botとの二重応答防止）",
 			msg:           IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false, Content: "@Rakuro ふるいけやかわず"},
 			words:         haikuWords,
 			wantSentCount: 0,
@@ -65,7 +59,7 @@ func TestHaikuHandler_HandleMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &fakeMessageSender{}
-			uc := haikuUC.New(&fakeAnalyzer{result: tt.words}, &fakeChannelFinder{ok: false}, sender)
+			uc := haikuUC.New(&fakeAnalyzer{result: tt.words}, sender)
 			h := NewHaikuHandler(uc)
 
 			if err := h.HandleMessage(context.Background(), tt.msg); err != nil {

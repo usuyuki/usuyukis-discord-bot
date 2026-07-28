@@ -2,6 +2,7 @@ package morph
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ikawaha/kagome-dict/ipa"
 	"github.com/ikawaha/kagome/v2/tokenizer"
@@ -34,11 +35,17 @@ func (a *KagomeAnalyzer) AnalyzeWords(text string) ([]haiku.Word, error) {
 		if !ok || reading == "" {
 			reading = tok.Surface
 		}
+		pos := strings.Join(tok.POS(), "-")
 		morae := haiku.SplitMorae(reading)
 		if len(morae) == 0 {
 			continue
 		}
-		words = append(words, haiku.Word{Surface: tok.Surface, MoraCount: len(morae)})
+		words = append(words, haiku.Word{
+			Surface:   tok.Surface,
+			Reading:   reading,
+			POS:       pos,
+			MoraCount: len(morae),
+		})
 	}
 	return words, nil
 }

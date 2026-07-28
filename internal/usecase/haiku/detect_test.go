@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/haiku"
-	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/notifychannel"
 )
 
 type fakeAnalyzer struct {
@@ -17,14 +16,6 @@ func (f *fakeAnalyzer) AnalyzeWords(text string) ([]haiku.Word, error) {
 	return f.words, f.err
 }
 
-type fakeChannelFinder struct {
-	nc notifychannel.NotifyChannel
-	ok bool
-}
-
-func (f *fakeChannelFinder) Find(ctx context.Context, guildID string, purpose notifychannel.Purpose) (notifychannel.NotifyChannel, bool, error) {
-	return f.nc, f.ok, nil
-}
 
 type fakeSender struct {
 	sentChannelID string
@@ -70,64 +61,70 @@ func TestUseCase_Detect(t *testing.T) {
 	tests := []struct {
 		name              string
 		words             []haiku.Word
-		notifyChannelOK   bool
-		notifyChannelID   string
-		fallbackChannelID string
+		channelID         string
+		messageBody       string
 		wantDetected      bool
 		wantSentChannelID string
 		wantContent       string
 	}{
 		{
-			name:              "正常系: 575判定でtrueかつ通知先チャンネル登録済みならそこに送信する",
+			name:              "正常系: 575判定でtrueなら投稿元チャンネルへ川柳として通知する",
 			words:             haikuWords,
-			notifyChannelOK:   true,
-			notifyChannelID:   "notify-channel",
-			fallbackChannelID: "fallback-channel",
+			channelID:         "test-channel",
+			messageBody:       "古池や 蛙飛び込む 水の音",
 			wantDetected:      true,
-			wantSentChannelID: "notify-channel",
-			wantContent:       "俳句を検知しました:\n古池や 蛙飛び込む 水の音",
-		},
-		{
-			name:              "正常系: 通知先未登録ならfallbackチャンネルに送信する",
-			words:             haikuWords,
-			notifyChannelOK:   false,
-			fallbackChannelID: "fallback-channel",
-			wantDetected:      true,
-			wantSentChannelID: "fallback-channel",
-			wantContent:       "俳句を検知しました:\n古池や 蛙飛び込む 水の音",
+			wantSentChannelID: "test-channel",
+			wantContent:       "川柳を検知しました:\n「古池や　蛙飛び込む　水の音」",
 		},
 		{
 			name:              "正常系: 57577判定でtrueなら短歌として通知する",
 			words:             tankaWords,
-			notifyChannelOK:   false,
-			fallbackChannelID: "fallback-channel",
+			channelID:         "test-channel",
+			messageBody:       "たらちねの 母がつりたる 青蚊帳 すがしい朝の かぜの中にゐる",
 			wantDetected:      true,
-			wantSentChannelID: "fallback-channel",
-			wantContent:       "短歌を検知しました:\nたらちねの 母がつりたる 青蚊帳 すがしい朝の かぜの中にゐる",
+			wantSentChannelID: "test-channel",
+			wantContent:       "短歌を検知しました:\n「たらちねの　母がつりたる　青蚊帳　すがしい朝の　かぜの中にゐる」",
 		},
 		{
 			name:              "異常系: 575にも57577にもならなければ送信しない",
 			words:             notWords,
-			notifyChannelOK:   false,
-			fallbackChannelID: "fallback-channel",
+			channelID:         "test-channel",
+			messageBody:       "今日はいい天気ですね",
 			wantDetected:      false,
+		},
+		{
+			name:              "正常系: --debugをつけるとデバッグ情報が出力される",
+			words:             haikuWords,
+			channelID:         "test-channel",
+			messageBody:       "古池や 蛙飛び込む 水の音 --debug",
+			wantDetected:      true,
+			wantSentChannelID: "test-channel",
+			wantContent:       "川柳を検知しました:\n「古池や　蛙飛び込む　水の音」\n\n【デバッグ: 形態素解析結果】\n```text\n古池\t\t\t(3拍)\nや\t\t\t(2拍)\n蛙\t\t\t(3拍)\n飛び込む\t\t\t(4拍)\n水の\t\t\t(3拍)\n音\t\t\t(2拍)\n```",
+		},
+		{
+			name:              "異常系: --debugをつけると575でなくてもデバッグ情報が出力される",
+			words:             notWords,
+			channelID:         "test-channel",
+			messageBody:       "今日はいい天気ですね --debug",
+			wantDetected:      false,
+			wantSentChannelID: "test-channel",
+			wantContent:       "川柳・短歌として検知できませんでした。\n\n【デバッグ: 形態素解析結果】\n```text\n今日\t\t\t(2拍)\nはいい\t\t\t(3拍)\n天気\t\t\t(3拍)\nですね\t\t\t(3拍)\n```",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			analyzer := &fakeAnalyzer{words: tt.words}
-			finder := &fakeChannelFinder{ok: tt.notifyChannelOK, nc: notifychannel.NotifyChannel{ChannelID: tt.notifyChannelID}}
 			sender := &fakeSender{}
-			u := New(analyzer, finder, sender)
+			u := New(analyzer, sender)
 
-			detected, err := u.Detect(context.Background(), "g1", tt.fallbackChannelID, "テストメッセージ")
+			detected, err := u.Detect(context.Background(), "g1", tt.channelID, tt.messageBody)
 			if err != nil {
 				t.Fatalf("Detect() unexpected error = %v", err)
 			}
 			if detected != tt.wantDetected {
 				t.Fatalf("Detect() = %v, want %v", detected, tt.wantDetected)
 			}
-			if tt.wantDetected {
+			if tt.wantContent != "" {
 				if !sender.called {
 					t.Fatal("Detect() expected SendMessage to be called, but it wasn't")
 				}
