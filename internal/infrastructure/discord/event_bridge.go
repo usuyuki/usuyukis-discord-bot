@@ -77,7 +77,7 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 			current[em.ID] = true
 		}
 		mu.Lock()
-		previousEmojis[e.GuildID] = current
+		previousEmojis[e.ID] = current
 		mu.Unlock()
 	})
 

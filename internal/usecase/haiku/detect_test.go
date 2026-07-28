@@ -16,7 +16,6 @@ func (f *fakeAnalyzer) AnalyzeWords(text string) ([]haiku.Word, error) {
 	return f.words, f.err
 }
 
-
 type fakeSender struct {
 	sentChannelID string
 	sentContent   string
@@ -86,11 +85,11 @@ func TestUseCase_Detect(t *testing.T) {
 			wantContent:       "短歌を検知しました:\n「たらちねの　母がつりたる　青蚊帳　すがしい朝の　かぜの中にゐる」",
 		},
 		{
-			name:              "異常系: 575にも57577にもならなければ送信しない",
-			words:             notWords,
-			channelID:         "test-channel",
-			messageBody:       "今日はいい天気ですね",
-			wantDetected:      false,
+			name:         "異常系: 575にも57577にもならなければ送信しない",
+			words:        notWords,
+			channelID:    "test-channel",
+			messageBody:  "今日はいい天気ですね",
+			wantDetected: false,
 		},
 		{
 			name:              "正常系: --debugをつけるとデバッグ情報が出力される",
@@ -108,7 +107,7 @@ func TestUseCase_Detect(t *testing.T) {
 			messageBody:       "今日はいい天気ですね --debug",
 			wantDetected:      false,
 			wantSentChannelID: "test-channel",
-			wantContent:       "川柳・短歌として検知できませんでした。\n\n【デバッグ: 形態素解析結果】\n```text\n今日\t\t\t(2拍)\nはいい\t\t\t(3拍)\n天気\t\t\t(3拍)\nですね\t\t\t(3拍)\n```",
+			wantContent:       "川柳・短歌として検知できませんでした。\n\n【デバッグ: 字余り・字足らず判定】\n川柳判定: 期待:5,7,5　結果:2,6,3\n短歌判定: 期待:5,7,5,7,7　結果:0,0,0,0,11\n\n【デバッグ: 形態素解析結果】\n```text\n今日\t\t\t(2拍)\nはいい\t\t\t(3拍)\n天気\t\t\t(3拍)\nですね\t\t\t(3拍)\n```",
 		},
 	}
 	for _, tt := range tests {

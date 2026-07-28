@@ -13,8 +13,8 @@ var ignorePattern = regexp.MustCompile(`[\p{P}\p{S}\s]+`)
 
 // UseCase は俳句（5-7-5）・短歌（5-7-5-7-7）投稿の検知・通知に関するアプリケーションロジック
 type UseCase struct {
-	analyzer      MorphAnalyzer
-	sender        MessageSender
+	analyzer MorphAnalyzer
+	sender   MessageSender
 }
 
 // New はUseCaseを生成する
@@ -51,9 +51,20 @@ func (u *UseCase) Detect(ctx context.Context, guildID, channelID, messageBody st
 	}
 
 	if isDebug {
+		if !ok {
+			formatPattern := func(p []int) string {
+				return strings.ReplaceAll(strings.Trim(fmt.Sprint(p), "[]"), " ", ",")
+			}
+			senryuResult := haiku.EvaluateBestSplit(words, haiku.HaikuPattern)
+			tankaResult := haiku.EvaluateBestSplit(words, haiku.TankaPattern)
+			contentBuilder.WriteString("\n\n【デバッグ: 字余り・字足らず判定】\n")
+			fmt.Fprintf(&contentBuilder, "川柳判定: 期待:%s　結果:%s\n", formatPattern(haiku.HaikuPattern), formatPattern(senryuResult))
+			fmt.Fprintf(&contentBuilder, "短歌判定: 期待:%s　結果:%s", formatPattern(haiku.TankaPattern), formatPattern(tankaResult))
+		}
+
 		contentBuilder.WriteString("\n\n【デバッグ: 形態素解析結果】\n```text\n")
 		for _, w := range words {
-			contentBuilder.WriteString(fmt.Sprintf("%s\t%s\t%s\t(%d拍)\n", w.Surface, w.Reading, w.POS, w.MoraCount))
+			fmt.Fprintf(&contentBuilder, "%s\t%s\t%s\t(%d拍)\n", w.Surface, w.Reading, w.POS, w.MoraCount)
 		}
 		contentBuilder.WriteString("```")
 	}

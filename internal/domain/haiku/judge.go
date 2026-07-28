@@ -89,3 +89,66 @@ func Split(words []Word, pattern []int) (result []string, ok bool) {
 	}
 	return phrases, true
 }
+
+// EvaluateBestSplit はwordsをlen(pattern)個の連続したグループに分割する組み合わせのうち、
+// 各グループのモーラ数合計とpatternの対応する句の拍数との差の絶対値の総和が最小になる
+// 内訳（グループごとのモーラ数合計）を返す。字余り・字足らずでJudge/Splitが失敗した際に
+// 「どこがどれだけずれているか」をデバッグ表示するために使う。
+// 全分割の総当たりだと単語数に対して指数時間になり長文メッセージでBotの応答が止まりかねないため、
+// 「i番目の単語までをj個の句に分けたときの最小スコア」をdp[i][j]として動的計画法で多項式時間に抑える
+func EvaluateBestSplit(words []Word, pattern []int) (bestCounts []int) {
+	if len(pattern) == 0 {
+		return nil
+	}
+
+	n := len(words)
+	k := len(pattern)
+
+	// prefix[i] はwords[0:i]のモーラ数合計。区間[start,i)の合計をprefix[i]-prefix[start]で求める
+	prefix := make([]int, n+1)
+	for i, w := range words {
+		prefix[i+1] = prefix[i] + w.MoraCount
+	}
+
+	const unreachable = -1
+	dp := make([][]int, n+1)
+	// split[i][j] はdp[i][j]を達成する最後の句の開始単語インデックス（復元用）
+	split := make([][]int, n+1)
+	for i := range dp {
+		dp[i] = make([]int, k+1)
+		split[i] = make([]int, k+1)
+		for j := range dp[i] {
+			dp[i][j] = unreachable
+		}
+	}
+	dp[0][0] = 0
+
+	for j := 1; j <= k; j++ {
+		for i := 1; i <= n; i++ {
+			for start := range i {
+				if dp[start][j-1] == unreachable {
+					continue
+				}
+				groupMora := prefix[i] - prefix[start]
+				diff := groupMora - pattern[j-1]
+				if diff < 0 {
+					diff = -diff
+				}
+				score := dp[start][j-1] + diff
+				if dp[i][j] == unreachable || score < dp[i][j] {
+					dp[i][j] = score
+					split[i][j] = start
+				}
+			}
+		}
+	}
+
+	bestCounts = make([]int, k)
+	i := n
+	for j := k; j >= 1; j-- {
+		start := split[i][j]
+		bestCounts[j-1] = prefix[i] - prefix[start]
+		i = start
+	}
+	return bestCounts
+}
