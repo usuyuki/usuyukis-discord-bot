@@ -24,6 +24,12 @@ func NewKeywordRepository(pool *pgxpool.Pool) *KeywordRepository {
 // AddResponse はギルドの指定キーワードに応答候補を1件追加する。
 // キーワードが未登録なら新規作成し、既存なら応答候補を積み増す
 func (r *KeywordRepository) AddResponse(ctx context.Context, guildID, word, response string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("postgres: failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	const upsertKeyword = `
 		INSERT INTO keywords (guild_id, keyword)
 		VALUES ($1, $2)
@@ -31,7 +37,7 @@ func (r *KeywordRepository) AddResponse(ctx context.Context, guildID, word, resp
 		RETURNING id
 	`
 	var keywordID int64
-	if err := r.pool.QueryRow(ctx, upsertKeyword, guildID, word).Scan(&keywordID); err != nil {
+	if err := tx.QueryRow(ctx, upsertKeyword, guildID, word).Scan(&keywordID); err != nil {
 		return fmt.Errorf("postgres: failed to upsert keyword: %w", err)
 	}
 
@@ -40,8 +46,12 @@ func (r *KeywordRepository) AddResponse(ctx context.Context, guildID, word, resp
 		VALUES ($1, $2)
 		ON CONFLICT (keyword_id, response) DO NOTHING
 	`
-	if _, err := r.pool.Exec(ctx, insertResponse, keywordID, response); err != nil {
+	if _, err := tx.Exec(ctx, insertResponse, keywordID, response); err != nil {
 		return fmt.Errorf("postgres: failed to add keyword response: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("postgres: failed to commit transaction: %w", err)
 	}
 	return nil
 }
@@ -49,6 +59,12 @@ func (r *KeywordRepository) AddResponse(ctx context.Context, guildID, word, resp
 // RemoveResponse はギルドの指定キーワードから特定の応答候補を1件削除する。
 // 応答候補が0件になったキーワードはkeywordsからも削除する
 func (r *KeywordRepository) RemoveResponse(ctx context.Context, guildID, word, response string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("postgres: failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	const deleteResponse = `
 		DELETE FROM keyword_responses
 		USING keywords
@@ -57,7 +73,7 @@ func (r *KeywordRepository) RemoveResponse(ctx context.Context, guildID, word, r
 		  AND keywords.keyword = $2
 		  AND keyword_responses.response = $3
 	`
-	if _, err := r.pool.Exec(ctx, deleteResponse, guildID, word, response); err != nil {
+	if _, err := tx.Exec(ctx, deleteResponse, guildID, word, response); err != nil {
 		return fmt.Errorf("postgres: failed to delete keyword response: %w", err)
 	}
 
@@ -69,8 +85,12 @@ func (r *KeywordRepository) RemoveResponse(ctx context.Context, guildID, word, r
 		    SELECT 1 FROM keyword_responses WHERE keyword_responses.keyword_id = keywords.id
 		  )
 	`
-	if _, err := r.pool.Exec(ctx, deleteEmptyKeyword, guildID, word); err != nil {
+	if _, err := tx.Exec(ctx, deleteEmptyKeyword, guildID, word); err != nil {
 		return fmt.Errorf("postgres: failed to delete emptied keyword: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("postgres: failed to commit transaction: %w", err)
 	}
 	return nil
 }
