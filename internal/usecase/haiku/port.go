@@ -10,6 +10,9 @@ import (
 // infrastructure層（kagome実装）が提供する
 type MorphAnalyzer interface {
 	AnalyzeWords(text string) ([]haiku.Word, error)
+	// Name は使用している形態素解析器・辞書を表す表示用文字列を返す（例: "kagome v2 / UniDic辞書"）。
+	// デバッグ出力でのみ使用し、判定ロジックはこの値に依存しない
+	Name() string
 }
 
 // MessageSender はDiscordチャンネルへメッセージを送信するport

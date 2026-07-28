@@ -55,12 +55,20 @@ func (u *UseCase) Detect(ctx context.Context, guildID, channelID, messageBody st
 			formatPattern := func(p []int) string {
 				return strings.ReplaceAll(strings.Trim(fmt.Sprint(p), "[]"), " ", ",")
 			}
+			resultMark := func(matched bool) string {
+				if matched {
+					return "✅"
+				}
+				return "❌"
+			}
 			senryuResult := haiku.EvaluateBestSplit(words, haiku.HaikuPattern)
 			tankaResult := haiku.EvaluateBestSplit(words, haiku.TankaPattern)
 			contentBuilder.WriteString("\n\n【デバッグ: 字余り・字足らず判定】\n")
-			fmt.Fprintf(&contentBuilder, "川柳判定: 期待:%s　結果:%s\n", formatPattern(haiku.HaikuPattern), formatPattern(senryuResult))
-			fmt.Fprintf(&contentBuilder, "短歌判定: 期待:%s　結果:%s", formatPattern(haiku.TankaPattern), formatPattern(tankaResult))
+			fmt.Fprintf(&contentBuilder, "川柳判定%s: 期待:%s　結果:%s\n", resultMark(intSliceEqual(senryuResult, haiku.HaikuPattern)), formatPattern(haiku.HaikuPattern), formatPattern(senryuResult))
+			fmt.Fprintf(&contentBuilder, "短歌判定%s: 期待:%s　結果:%s", resultMark(intSliceEqual(tankaResult, haiku.TankaPattern)), formatPattern(haiku.TankaPattern), formatPattern(tankaResult))
 		}
+
+		contentBuilder.WriteString("\n\n【デバッグ: 使用形態素解析器】\n" + u.analyzer.Name())
 
 		contentBuilder.WriteString("\n\n【デバッグ: 形態素解析結果】\n```text\n")
 		for _, w := range words {
@@ -85,4 +93,17 @@ func judgeAndSplit(words []haiku.Word) (label string, phrases []string, ok bool)
 		return "短歌", phrases, true
 	}
 	return "", nil, false
+}
+
+// intSliceEqual はa, bの要素が順序も含めてすべて一致するかを返す
+func intSliceEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

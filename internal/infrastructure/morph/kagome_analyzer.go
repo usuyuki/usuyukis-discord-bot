@@ -49,3 +49,8 @@ func (a *KagomeAnalyzer) AnalyzeWords(text string) ([]haiku.Word, error) {
 	}
 	return words, nil
 }
+
+// Name は使用している形態素解析器・辞書を表す表示用文字列を返す
+func (a *KagomeAnalyzer) Name() string {
+	return "kagome v2 / UniDic辞書"
+}
