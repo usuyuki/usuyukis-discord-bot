@@ -12,7 +12,6 @@ type fakeAnalyzer struct{ result []haiku.Word }
 
 func (f *fakeAnalyzer) AnalyzeWords(text string) ([]haiku.Word, error) { return f.result, nil }
 
-
 func TestHaikuHandler_HandleMessage(t *testing.T) {
 	haikuWords := []haiku.Word{
 		{Surface: "ふる", MoraCount: 5},

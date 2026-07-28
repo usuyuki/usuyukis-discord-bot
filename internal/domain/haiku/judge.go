@@ -111,7 +111,7 @@ func EvaluateBestSplit(words []Word, pattern []int) (bestCounts []int) {
 	search = func(wordIdx int, groupIdx int, currentCounts []int) {
 		if wordIdx == len(words) && groupIdx == len(pattern) {
 			score := 0
-			for i := 0; i < len(pattern); i++ {
+			for i := range len(pattern) {
 				diff := currentCounts[i] - pattern[i]
 				if diff < 0 {
 					score += -diff
@@ -125,7 +125,7 @@ func EvaluateBestSplit(words []Word, pattern []int) (bestCounts []int) {
 			}
 			return
 		}
-		
+
 		remainingGroups := len(pattern) - groupIdx
 		remainingWords := len(words) - wordIdx
 		if remainingWords < remainingGroups {

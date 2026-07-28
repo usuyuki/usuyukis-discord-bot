@@ -16,4 +16,3 @@ type MorphAnalyzer interface {
 type MessageSender interface {
 	SendMessage(ctx context.Context, channelID, content string) error
 }
-

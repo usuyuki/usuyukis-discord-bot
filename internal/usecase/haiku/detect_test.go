@@ -16,7 +16,6 @@ func (f *fakeAnalyzer) AnalyzeWords(text string) ([]haiku.Word, error) {
 	return f.words, f.err
 }
 
-
 type fakeSender struct {
 	sentChannelID string
 	sentContent   string
@@ -86,11 +85,11 @@ func TestUseCase_Detect(t *testing.T) {
 			wantContent:       "短歌を検知しました:\n「たらちねの　母がつりたる　青蚊帳　すがしい朝の　かぜの中にゐる」",
 		},
 		{
-			name:              "異常系: 575にも57577にもならなければ送信しない",
-			words:             notWords,
-			channelID:         "test-channel",
-			messageBody:       "今日はいい天気ですね",
-			wantDetected:      false,
+			name:         "異常系: 575にも57577にもならなければ送信しない",
+			words:        notWords,
+			channelID:    "test-channel",
+			messageBody:  "今日はいい天気ですね",
+			wantDetected: false,
 		},
 		{
 			name:              "正常系: --debugをつけるとデバッグ情報が出力される",
