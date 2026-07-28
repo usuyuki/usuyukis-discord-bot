@@ -1,0 +1,12 @@
+{{define "content"}}
+<h1>ギルド一覧</h1>
+{{if not .Guilds}}
+<p>Botが参加しているギルドがありません。</p>
+{{else}}
+<ul>
+  {{range .Guilds}}
+  <li><a href="/guilds/{{.ID}}">{{.Name}}</a> ({{.ID}})</li>
+  {{end}}
+</ul>
+{{end}}
+{{end}}

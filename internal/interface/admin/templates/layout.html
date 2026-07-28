@@ -1,0 +1,22 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>{{.Title}}</title>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
+    th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
+    form.inline { display: inline; }
+    nav a { margin-right: 1rem; }
+    .form-row { margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+  <nav><a href="/">ギルド一覧</a></nav>
+  <hr>
+  {{template "content" .}}
+</body>
+</html>
+{{end}}
