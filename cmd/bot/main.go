@@ -73,6 +73,10 @@ func run() error {
 	emojiUseCase := emojiUC.New(notifyChannelRepo, messageSender)
 
 	router := discordbot.NewRouter()
+	if cfg.DevMode {
+		router.SetDevChannelID(cfg.DevChannelID)
+		log.Printf("bot: dev mode enabled, only channel %s will be handled", cfg.DevChannelID)
+	}
 	router.RegisterMessageHandler(discordbot.NewDakokuHandler(messageSender))
 	router.RegisterMessageHandler(discordbot.NewKeywordHandler(keywordUseCase, messageSender))
 	router.RegisterMessageHandler(discordbot.NewHaikuHandler(haikuUseCase))

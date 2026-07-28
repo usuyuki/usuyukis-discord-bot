@@ -29,19 +29,25 @@ func TestDakokuHandler_HandleMessage(t *testing.T) {
 		wantContent string
 	}{
 		{
-			name:        "正常系: Botへのメンションがあれば現在時刻を返信する",
-			msg:         IncomingMessage{ChannelID: "c1", MentionsBotID: true},
+			name:        "正常系: 本文に@Rakuroが含まれれば現在時刻を返信する",
+			msg:         IncomingMessage{ChannelID: "c1", Content: "@Rakuro 今何時？"},
 			wantCalled:  true,
 			wantContent: "2026-07-28 14:32:10",
 		},
 		{
-			name:       "異常系: Botへのメンションがなければ何もしない",
-			msg:        IncomingMessage{ChannelID: "c1", MentionsBotID: false},
+			name:        "正常系: 本文に@rakuro（小文字）が含まれれば現在時刻を返信する",
+			msg:         IncomingMessage{ChannelID: "c1", Content: "@rakuro 今何時？"},
+			wantCalled:  true,
+			wantContent: "2026-07-28 14:32:10",
+		},
+		{
+			name:       "異常系: 本文に@Rakuro/@rakuroが含まれなければ何もしない",
+			msg:        IncomingMessage{ChannelID: "c1", MentionsBotID: true, Content: "こんにちは"},
 			wantCalled: false,
 		},
 		{
-			name:       "異常系: keywordコマンドへのメンションであれば打刻は反応しない",
-			msg:        IncomingMessage{ChannelID: "c1", MentionsBotID: true, Content: "<@bot> keyword add ぬるぽ ガッ"},
+			name:       "異常系: keywordコマンドであれば打刻は反応しない",
+			msg:        IncomingMessage{ChannelID: "c1", Content: "@Rakuro keyword add ぬるぽ ガッ"},
 			wantCalled: false,
 		},
 	}

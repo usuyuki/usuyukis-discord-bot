@@ -23,3 +23,10 @@ func SplitMorae(reading string) []string {
 	}
 	return morae
 }
+
+// Word は形態素解析で得られる形態素1つ分の情報。
+// Surface は元の表層形（漢字仮名混じりの原文表記）、MoraCount はその読みのモーラ数
+type Word struct {
+	Surface   string
+	MoraCount int
+}

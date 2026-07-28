@@ -96,10 +96,14 @@ type keywordCommand struct {
 // "keyword"で始まらない場合はnilを返す（他のコマンドやただのメンションと区別するため）
 func parseKeywordCommand(content string) *keywordCommand {
 	fields := strings.Fields(content)
-	// メンション文字列（<@123456>等）を除去してからkeywordコマンドを探す
+	// メンション文字列（<@123456>等）および打刻Botのテキストメンション（@Rakuro/@rakuro）を
+	// 除去してからkeywordコマンドを探す
 	filtered := make([]string, 0, len(fields))
 	for _, f := range fields {
 		if strings.HasPrefix(f, "<@") && strings.HasSuffix(f, ">") {
+			continue
+		}
+		if strings.EqualFold(f, "@rakuro") {
 			continue
 		}
 		filtered = append(filtered, f)

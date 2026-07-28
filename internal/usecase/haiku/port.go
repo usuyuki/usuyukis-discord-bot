@@ -3,13 +3,14 @@ package haiku
 import (
 	"context"
 
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/haiku"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/notifychannel"
 )
 
-// MorphAnalyzer はテキストを形態素解析し、形態素ごとのモーラ数の列を返すport。
+// MorphAnalyzer はテキストを形態素解析し、形態素ごとの表層形とモーラ数の列を返すport。
 // infrastructure層（kagome実装）が提供する
 type MorphAnalyzer interface {
-	MoraCountsByWord(text string) ([]int, error)
+	AnalyzeWords(text string) ([]haiku.Word, error)
 }
 
 // NotifyChannelFinder はギルド・用途ごとの通知先チャンネルを取得するport

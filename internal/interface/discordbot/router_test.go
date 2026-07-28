@@ -57,6 +57,44 @@ func TestRouter_DispatchMessage(t *testing.T) {
 			t.Errorf("ok handler should still receive the message even if a preceding handler fails, got %v", ok.received)
 		}
 	})
+
+	t.Run("正常系: dev mode未設定時はどのチャンネルの投稿もハンドラに配送される", func(t *testing.T) {
+		r := NewRouter()
+		h := &recordingMessageHandler{}
+		r.RegisterMessageHandler(h)
+
+		r.DispatchMessage(context.Background(), IncomingMessage{ChannelID: "any-channel"})
+
+		if len(h.received) != 1 {
+			t.Errorf("handler should receive the message when dev mode is disabled, got %v", h.received)
+		}
+	})
+
+	t.Run("正常系: dev mode設定時は指定チャンネルの投稿がハンドラに配送される", func(t *testing.T) {
+		r := NewRouter()
+		r.SetDevChannelID("dev-channel")
+		h := &recordingMessageHandler{}
+		r.RegisterMessageHandler(h)
+
+		r.DispatchMessage(context.Background(), IncomingMessage{ChannelID: "dev-channel"})
+
+		if len(h.received) != 1 {
+			t.Errorf("handler should receive the message from the dev channel, got %v", h.received)
+		}
+	})
+
+	t.Run("異常系: dev mode設定時は指定チャンネル以外の投稿はハンドラに配送されない", func(t *testing.T) {
+		r := NewRouter()
+		r.SetDevChannelID("dev-channel")
+		h := &recordingMessageHandler{}
+		r.RegisterMessageHandler(h)
+
+		r.DispatchMessage(context.Background(), IncomingMessage{ChannelID: "other-channel"})
+
+		if len(h.received) != 0 {
+			t.Errorf("handler should not receive the message from a non-dev channel, got %v", h.received)
+		}
+	})
 }
 
 func TestRouter_DispatchEmojiUpdate(t *testing.T) {

@@ -24,11 +24,11 @@ func NewKagomeAnalyzer() (*KagomeAnalyzer, error) {
 	return &KagomeAnalyzer{tokenizer: t}, nil
 }
 
-// MoraCountsByWord はtextを形態素解析し、形態素（単語）ごとのモーラ数の列を返す。
+// AnalyzeWords はtextを形態素解析し、形態素（単語）ごとの表層形とモーラ数を返す。
 // 読みが辞書から取得できない形態素（記号・未知語等）は表層形をそのまま読みとして扱う
-func (a *KagomeAnalyzer) MoraCountsByWord(text string) ([]int, error) {
+func (a *KagomeAnalyzer) AnalyzeWords(text string) ([]haiku.Word, error) {
 	tokens := a.tokenizer.Tokenize(text)
-	counts := make([]int, 0, len(tokens))
+	words := make([]haiku.Word, 0, len(tokens))
 	for _, tok := range tokens {
 		reading, ok := tok.Reading()
 		if !ok || reading == "" {
@@ -38,7 +38,7 @@ func (a *KagomeAnalyzer) MoraCountsByWord(text string) ([]int, error) {
 		if len(morae) == 0 {
 			continue
 		}
-		counts = append(counts, len(morae))
+		words = append(words, haiku.Word{Surface: tok.Surface, MoraCount: len(morae)})
 	}
-	return counts, nil
+	return words, nil
 }
