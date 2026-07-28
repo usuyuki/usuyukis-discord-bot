@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/notifychannel"
 	emojiUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/emoji"
 )
@@ -18,6 +19,11 @@ func (f *fakeEmojiChannelFinder) Find(ctx context.Context, guildID string, purpo
 }
 
 func TestEmojiHandler_HandleEmojiUpdate(t *testing.T) {
+	newEmoji, err := emoji.New("new", "999", false)
+	if err != nil {
+		t.Fatalf("emoji.New() unexpected error = %v", err)
+	}
+
 	tests := []struct {
 		name       string
 		ev         IncomingEmojiUpdate
@@ -26,13 +32,13 @@ func TestEmojiHandler_HandleEmojiUpdate(t *testing.T) {
 	}{
 		{
 			name:       "正常系: 追加絵文字があり通知先が登録済みなら送信する",
-			ev:         IncomingEmojiUpdate{GuildID: "g1", AddedEmojiNames: []string{":new:"}},
+			ev:         IncomingEmojiUpdate{GuildID: "g1", AddedEmojis: []emoji.Emoji{newEmoji}},
 			channelOK:  true,
 			wantCalled: true,
 		},
 		{
 			name:       "異常系: 追加絵文字がなければ送信しない",
-			ev:         IncomingEmojiUpdate{GuildID: "g1", AddedEmojiNames: nil},
+			ev:         IncomingEmojiUpdate{GuildID: "g1", AddedEmojis: nil},
 			channelOK:  true,
 			wantCalled: false,
 		},

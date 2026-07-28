@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
 )
 
 type recordingMessageHandler struct {
@@ -98,12 +100,20 @@ func TestRouter_DispatchMessage(t *testing.T) {
 }
 
 func TestRouter_DispatchEmojiUpdate(t *testing.T) {
+	newEmoji := func(t *testing.T) emoji.Emoji {
+		e, err := emoji.New("new", "999", false)
+		if err != nil {
+			t.Fatalf("emoji.New() unexpected error = %v", err)
+		}
+		return e
+	}
+
 	t.Run("正常系: 登録済み全ハンドラに絵文字更新イベントが配送される", func(t *testing.T) {
 		r := NewRouter()
 		h := &recordingEmojiHandler{}
 		r.RegisterEmojiUpdateHandler(h)
 
-		ev := IncomingEmojiUpdate{GuildID: "g1", AddedEmojiNames: []string{":new:"}}
+		ev := IncomingEmojiUpdate{GuildID: "g1", AddedEmojis: []emoji.Emoji{newEmoji(t)}}
 		r.DispatchEmojiUpdate(context.Background(), ev)
 
 		if len(h.received) != 1 || h.received[0].GuildID != "g1" {
@@ -117,7 +127,7 @@ func TestRouter_DispatchEmojiUpdate(t *testing.T) {
 		h := &recordingEmojiHandler{}
 		r.RegisterEmojiUpdateHandler(h)
 
-		ev := IncomingEmojiUpdate{GuildID: "g1", AddedEmojiNames: []string{":new:"}}
+		ev := IncomingEmojiUpdate{GuildID: "g1", AddedEmojis: []emoji.Emoji{newEmoji(t)}}
 		r.DispatchEmojiUpdate(context.Background(), ev)
 
 		if len(h.received) != 0 {

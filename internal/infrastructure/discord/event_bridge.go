@@ -6,6 +6,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/interface/discordbot"
 )
 
@@ -85,11 +86,13 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		mu.Lock()
 		prev := previousEmojis[e.GuildID]
 		current := make(map[string]bool, len(e.Emojis))
-		var added []string
+		var added []emoji.Emoji
 		for _, em := range e.Emojis {
 			current[em.ID] = true
 			if prev != nil && !prev[em.ID] {
-				added = append(added, em.Name)
+				if de, err := emoji.New(em.Name, em.ID, em.Animated); err == nil {
+					added = append(added, de)
+				}
 			}
 		}
 		previousEmojis[e.GuildID] = current
@@ -103,8 +106,8 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 			return
 		}
 		router.DispatchEmojiUpdate(context.Background(), discordbot.IncomingEmojiUpdate{
-			GuildID:         e.GuildID,
-			AddedEmojiNames: added,
+			GuildID:     e.GuildID,
+			AddedEmojis: added,
 		})
 	})
 }
