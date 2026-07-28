@@ -130,3 +130,66 @@ func TestKeywordHandler_HandleMessage_AutoReply(t *testing.T) {
 		})
 	}
 }
+
+func TestParseKeywordCommand(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    *keywordCommand
+	}{
+		{
+			name:    "正常系: メンション1つに続くaddコマンドを解析できる",
+			content: "<@bot> keyword add ぬるぽ ガッ",
+			want:    &keywordCommand{Sub: "add", Word: "ぬるぽ", Response: "ガッ"},
+		},
+		{
+			name:    "正常系: 複数メンションが含まれていてもすべて除去して解析できる",
+			content: "<@bot> <@&role1> keyword add ぬるぽ ガッ",
+			want:    &keywordCommand{Sub: "add", Word: "ぬるぽ", Response: "ガッ"},
+		},
+		{
+			name:    "正常系: メンションが末尾にあってもkeywordコマンドとして解析できる",
+			content: "keyword list <@bot>",
+			want:    &keywordCommand{Sub: "list"},
+		},
+		{
+			name:    "正常系: 全角スペース区切りでもstrings.FieldsがUnicode空白として認識し解析できる",
+			content: "<@bot>　keyword　add",
+			want:    &keywordCommand{Sub: "add"},
+		},
+		{
+			name:    "異常系: keywordで始まらない場合はnilを返す",
+			content: "<@bot> hello world",
+			want:    nil,
+		},
+		{
+			name:    "異常系: メンションのみでサブコマンドがない場合はnilを返す",
+			content: "<@bot> keyword",
+			want:    nil,
+		},
+		{
+			name:    "異常系: 未知のサブコマンドはnilを返す",
+			content: "<@bot> keyword rename ぬるぽ",
+			want:    nil,
+		},
+		{
+			name:    "異常系: 本文が空の場合はnilを返す",
+			content: "",
+			want:    nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseKeywordCommand(tt.content)
+			if (got == nil) != (tt.want == nil) {
+				t.Fatalf("parseKeywordCommand(%q) = %+v, want %+v", tt.content, got, tt.want)
+			}
+			if got == nil {
+				return
+			}
+			if *got != *tt.want {
+				t.Errorf("parseKeywordCommand(%q) = %+v, want %+v", tt.content, got, tt.want)
+			}
+		})
+	}
+}

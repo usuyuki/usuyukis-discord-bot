@@ -39,6 +39,11 @@ func TestDakokuHandler_HandleMessage(t *testing.T) {
 			msg:        IncomingMessage{ChannelID: "c1", MentionsBotID: false},
 			wantCalled: false,
 		},
+		{
+			name:       "異常系: keywordコマンドへのメンションであれば打刻は反応しない",
+			msg:        IncomingMessage{ChannelID: "c1", MentionsBotID: true, Content: "<@bot> keyword add ぬるぽ ガッ"},
+			wantCalled: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

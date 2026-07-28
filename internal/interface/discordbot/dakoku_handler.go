@@ -23,9 +23,14 @@ func NewDakokuHandler(sender MessageSender) *DakokuHandler {
 	return &DakokuHandler{sender: sender, now: time.Now}
 }
 
-// HandleMessage はBotへのメンションを検知したら現在時刻を返信する
+// HandleMessage はBotへのメンションを検知したら現在時刻を返信する。
+// ただし他ハンドラ（keywordコマンド等）向けのメンションとの二重応答を避けるため、
+// 他コマンドとして解釈できるメッセージには反応しない
 func (h *DakokuHandler) HandleMessage(ctx context.Context, msg IncomingMessage) error {
 	if !msg.MentionsBotID {
+		return nil
+	}
+	if parseKeywordCommand(msg.Content) != nil {
 		return nil
 	}
 	reply := dakokuUC.Reply(h.now())

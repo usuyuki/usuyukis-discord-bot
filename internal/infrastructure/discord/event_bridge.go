@@ -63,7 +63,10 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		})
 	})
 
-	previousEmojis := map[string]map[string]bool{} // guildID -> emojiID set
+	// guildID -> emojiID set。プロセスローカルに前回状態を保持し、差分から追加された
+	// 絵文字のみ通知する。Bot参加ギルド数に比例してメモリを使用するが、通常運用の
+	// ギルド数では問題にならない規模と判断している
+	previousEmojis := map[string]map[string]bool{}
 
 	s.AddHandler(func(s *discordgo.Session, e *discordgo.GuildEmojisUpdate) {
 		prev := previousEmojis[e.GuildID]
@@ -77,6 +80,9 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		}
 		previousEmojis[e.GuildID] = current
 
+		// prev == nil はこのギルドについてBot起動後はじめて受け取るイベント。
+		// 「既存の全絵文字が追加された」という誤通知を避けるため、初回は必ず
+		// スキップする（＝Bot再起動直後に発生した最初の絵文字追加は通知されない）
 		if prev == nil || len(added) == 0 {
 			return
 		}
