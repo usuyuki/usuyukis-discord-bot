@@ -127,6 +127,15 @@ func TestSplit(t *testing.T) {
 			want:    nil,
 			wantOK:  false,
 		},
+		{
+			name: "異常系: patternが空だとwordsが空でも境界計算で負インデックスにならずfalseを返す",
+			words: []Word{
+				{Surface: "古池", MoraCount: 3},
+			},
+			pattern: []int{},
+			want:    nil,
+			wantOK:  false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

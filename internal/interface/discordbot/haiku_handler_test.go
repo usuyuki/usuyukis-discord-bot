@@ -50,6 +50,12 @@ func TestHaikuHandler_HandleMessage(t *testing.T) {
 			wantSentCount: 0,
 		},
 		{
+			name:          "異常系: 構造化メンションでなくテキストの@Rakuro表記でも俳句判定の対象外（打刻Botとの二重応答防止）",
+			msg:           IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false, Content: "@Rakuro ふるいけやかわず"},
+			words:         haikuWords,
+			wantSentCount: 0,
+		},
+		{
 			name:          "異常系: 575にならなければ通知しない",
 			msg:           IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false},
 			words:         notHaikuWords,

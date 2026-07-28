@@ -1,28 +1,32 @@
 package haiku
 
-// haikuPattern は俳句の定型（5-7-5）モーラ数の区切り
-var haikuPattern = [3]int{5, 7, 5}
+// HaikuPattern は俳句の定型（5-7-5）モーラ数の区切り。
+// usecase層はハードコードした定数を持たず、この値を参照することでdomain層との定義の重複・乖離を防ぐ
+var HaikuPattern = []int{5, 7, 5}
 
-// tankaPattern は短歌の定型（5-7-5-7-7）モーラ数の区切り
-var tankaPattern = [5]int{5, 7, 5, 7, 7}
+// TankaPattern は短歌の定型（5-7-5-7-7）モーラ数の区切り。用途はHaikuPatternと同様
+var TankaPattern = []int{5, 7, 5, 7, 7}
 
 // Judge は形態素ごとのモーラ数の列が5-7-5（合計17拍）に区切れるかどうかを判定する。
 // 各形態素（読みの単位）を跨いでモーラを分割することは不自然なため、
 // 形態素の境界を尊重したまま、句切れが5拍・12拍(5+7)・17拍の位置とちょうど一致する
 // 組み合わせが存在するかを探索する。
 func Judge(moraCountsByWord []int) bool {
-	return matchesPattern(moraCountsByWord, haikuPattern[:])
+	return matchesPattern(moraCountsByWord, HaikuPattern)
 }
 
 // JudgeTanka は形態素ごとのモーラ数の列が5-7-5-7-7（合計31拍）に区切れるかどうかを判定する。
 // Judgeと同様に形態素の境界を尊重して句切れ位置を探索する。
 func JudgeTanka(moraCountsByWord []int) bool {
-	return matchesPattern(moraCountsByWord, tankaPattern[:])
+	return matchesPattern(moraCountsByWord, TankaPattern)
 }
 
 // matchesPattern はmoraCountsByWordの合計がpatternの合計拍数と一致し、
 // かつpatternの各句切れ位置（累積拍数）がすべて形態素境界と一致するかを判定する
 func matchesPattern(moraCountsByWord []int, pattern []int) bool {
+	if len(pattern) == 0 {
+		return false
+	}
 	total := 0
 	for _, c := range moraCountsByWord {
 		total += c

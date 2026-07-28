@@ -87,7 +87,11 @@ func run() error {
 	if err := session.Open(); err != nil {
 		return err
 	}
-	defer session.Close()
+	defer func() {
+		if cerr := session.Close(); cerr != nil {
+			log.Printf("bot: failed to close discord session: %v", cerr)
+		}
+	}()
 	log.Println("bot: discord session opened")
 
 	adminServer, err := admin.NewServer(
