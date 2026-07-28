@@ -5,6 +5,7 @@ import (
 	"embed"
 	"html/template"
 	"net/http"
+	"strings"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/keyword"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/notifychannel"
@@ -16,7 +17,8 @@ var templateFS embed.FS
 // KeywordUseCase はadminサーバーが必要とするキーワード操作
 type KeywordUseCase interface {
 	Register(ctx context.Context, guildID, word, response string) error
-	Remove(ctx context.Context, guildID, word string) error
+	RemoveKeyword(ctx context.Context, guildID, word string) error
+	SetResponses(ctx context.Context, guildID, word string, responses []string) error
 	List(ctx context.Context, guildID string) ([]keyword.Keyword, error)
 }
 
@@ -56,6 +58,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleGuildList)
 	mux.HandleFunc("GET /guilds/{guildID}", s.handleGuildDetail)
 	mux.HandleFunc("POST /guilds/{guildID}/keywords", s.handleKeywordCreate)
+	mux.HandleFunc("POST /guilds/{guildID}/keywords/update", s.handleKeywordUpdate)
 	mux.HandleFunc("POST /guilds/{guildID}/keywords/delete", s.handleKeywordDelete)
 	mux.HandleFunc("POST /guilds/{guildID}/notify-channels", s.handleNotifyChannelSet)
 	return mux
@@ -139,6 +142,29 @@ func (s *Server) handleKeywordCreate(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/guilds/"+guildID, http.StatusSeeOther)
 }
 
+func (s *Server) handleKeywordUpdate(w http.ResponseWriter, r *http.Request) {
+	guildID := r.PathValue("guildID")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	word := r.PostForm.Get("word")
+	// 応答一覧は改行区切りのテキストエリアで受け取り、空行は除外して丸ごと置き換える
+	responses := make([]string, 0)
+	for _, line := range strings.Split(r.PostForm.Get("responses"), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			responses = append(responses, trimmed)
+		}
+	}
+
+	if err := s.keywords.SetResponses(r.Context(), guildID, word, responses); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/guilds/"+guildID, http.StatusSeeOther)
+}
+
 func (s *Server) handleKeywordDelete(w http.ResponseWriter, r *http.Request) {
 	guildID := r.PathValue("guildID")
 	if err := r.ParseForm(); err != nil {
@@ -147,7 +173,7 @@ func (s *Server) handleKeywordDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	word := r.PostForm.Get("word")
 
-	if err := s.keywords.Remove(r.Context(), guildID, word); err != nil {
+	if err := s.keywords.RemoveKeyword(r.Context(), guildID, word); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

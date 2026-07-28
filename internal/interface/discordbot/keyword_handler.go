@@ -54,12 +54,19 @@ func (h *KeywordHandler) handleCommand(ctx context.Context, msg IncomingMessage)
 			return h.sender.SendMessage(ctx, msg.ChannelID, "キーワード削除には管理者権限が必要です")
 		}
 		if args.Word == "" {
-			return h.sender.SendMessage(ctx, msg.ChannelID, "使い方: @Bot keyword remove <キーワード>")
+			return h.sender.SendMessage(ctx, msg.ChannelID, "使い方: @Bot keyword remove <キーワード> [応答]")
 		}
-		if err := h.uc.Remove(ctx, msg.GuildID, args.Word); err != nil {
+		// 応答を指定した場合はその応答のみ削除し、未指定の場合はキーワードごと全応答を削除する
+		if args.Response == "" {
+			if err := h.uc.RemoveKeyword(ctx, msg.GuildID, args.Word); err != nil {
+				return err
+			}
+			return h.sender.SendMessage(ctx, msg.ChannelID, fmt.Sprintf("削除しました: %s", args.Word))
+		}
+		if err := h.uc.RemoveResponse(ctx, msg.GuildID, args.Word, args.Response); err != nil {
 			return err
 		}
-		return h.sender.SendMessage(ctx, msg.ChannelID, fmt.Sprintf("削除しました: %s", args.Word))
+		return h.sender.SendMessage(ctx, msg.ChannelID, fmt.Sprintf("削除しました: %s → %s", args.Word, args.Response))
 
 	case "list":
 		keywords, err := h.uc.List(ctx, msg.GuildID)
@@ -81,7 +88,7 @@ func (h *KeywordHandler) handleAutoReply(ctx context.Context, msg IncomingMessag
 	if !ok {
 		return nil
 	}
-	return h.sender.SendMessage(ctx, msg.ChannelID, k.Response)
+	return h.sender.SendMessage(ctx, msg.ChannelID, k.RandomResponse())
 }
 
 // keywordCommand はパース済みのkeywordコマンド引数
@@ -128,6 +135,9 @@ func parseKeywordCommand(content string) *keywordCommand {
 		if len(filtered) >= 3 {
 			cmd.Word = filtered[2]
 		}
+		if len(filtered) >= 4 {
+			cmd.Response = strings.Join(filtered[3:], " ")
+		}
 	case "list":
 		// 追加引数なし
 	default:
@@ -156,7 +166,7 @@ func formatKeywordList(keywords []keyword.Keyword) string {
 	var b strings.Builder
 	b.WriteString("登録済みキーワード:\n")
 	for _, k := range keywords {
-		fmt.Fprintf(&b, "- %s → %s\n", k.Word, k.Response)
+		fmt.Fprintf(&b, "- %s → %s\n", k.Word, strings.Join(k.Responses, " / "))
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

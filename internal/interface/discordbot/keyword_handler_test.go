@@ -9,32 +9,63 @@ import (
 	keywordUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/keyword"
 )
 
+// fakeKeywordRepository はテスト用のインメモリRepository実装。
+// guildID -> word -> responses の形で保持し、応答の積み増し・個別削除を再現する
 type fakeKeywordRepository struct {
-	items map[string][]keyword.Keyword
+	items map[string]map[string][]string
 }
 
 func newFakeKeywordRepository() *fakeKeywordRepository {
-	return &fakeKeywordRepository{items: map[string][]keyword.Keyword{}}
+	return &fakeKeywordRepository{items: map[string]map[string][]string{}}
 }
 
-func (f *fakeKeywordRepository) Save(ctx context.Context, k keyword.Keyword) error {
-	f.items[k.GuildID] = append(f.items[k.GuildID], k)
+func (f *fakeKeywordRepository) AddResponse(ctx context.Context, guildID, word, response string) error {
+	if f.items[guildID] == nil {
+		f.items[guildID] = map[string][]string{}
+	}
+	f.items[guildID][word] = append(f.items[guildID][word], response)
 	return nil
 }
 
-func (f *fakeKeywordRepository) Delete(ctx context.Context, guildID, word string) error {
-	kept := f.items[guildID][:0]
-	for _, k := range f.items[guildID] {
-		if k.Word != word {
-			kept = append(kept, k)
+func (f *fakeKeywordRepository) RemoveResponse(ctx context.Context, guildID, word, response string) error {
+	responses := f.items[guildID][word]
+	kept := responses[:0]
+	for _, r := range responses {
+		if r != response {
+			kept = append(kept, r)
 		}
 	}
-	f.items[guildID] = kept
+	if len(kept) == 0 {
+		delete(f.items[guildID], word)
+		return nil
+	}
+	f.items[guildID][word] = kept
+	return nil
+}
+
+func (f *fakeKeywordRepository) RemoveKeyword(ctx context.Context, guildID, word string) error {
+	delete(f.items[guildID], word)
+	return nil
+}
+
+func (f *fakeKeywordRepository) ReplaceResponses(ctx context.Context, guildID, word string, responses []string) error {
+	if f.items[guildID] == nil {
+		f.items[guildID] = map[string][]string{}
+	}
+	f.items[guildID][word] = responses
 	return nil
 }
 
 func (f *fakeKeywordRepository) FindByGuild(ctx context.Context, guildID string) ([]keyword.Keyword, error) {
-	return f.items[guildID], nil
+	var result []keyword.Keyword
+	for word, responses := range f.items[guildID] {
+		k, err := keyword.New(0, guildID, word, responses)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, k)
+	}
+	return result, nil
 }
 
 func TestKeywordHandler_HandleMessage_Command(t *testing.T) {
@@ -75,8 +106,7 @@ func TestKeywordHandler_HandleMessage_Command(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := newFakeKeywordRepository()
 			if tt.preRegister {
-				k, _ := keyword.New(0, "g1", "ぬるぽ", "ガッ")
-				repo.items["g1"] = append(repo.items["g1"], k)
+				repo.items["g1"] = map[string][]string{"ぬるぽ": {"ガッ"}}
 			}
 			uc := keywordUC.New(repo)
 			sender := &fakeMessageSender{}
@@ -92,6 +122,38 @@ func TestKeywordHandler_HandleMessage_Command(t *testing.T) {
 				t.Errorf("HandleMessage() content = %q, want substring %q", sender.sentContent, tt.wantSentSub)
 			}
 		})
+	}
+}
+
+func TestKeywordHandler_HandleMessage_Command_MultipleResponses(t *testing.T) {
+	repo := newFakeKeywordRepository()
+	uc := keywordUC.New(repo)
+	sender := &fakeMessageSender{}
+	h := NewKeywordHandler(uc, sender)
+	ctx := context.Background()
+
+	addMsg := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, Content: "<@bot> keyword add ぬるぽ ガッ"}
+	if err := h.HandleMessage(ctx, addMsg); err != nil {
+		t.Fatalf("HandleMessage() unexpected error = %v", err)
+	}
+	addMsg2 := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, Content: "<@bot> keyword add ぬるぽ ｶﾞｯ"}
+	if err := h.HandleMessage(ctx, addMsg2); err != nil {
+		t.Fatalf("HandleMessage() unexpected error = %v", err)
+	}
+
+	if len(repo.items["g1"]["ぬるぽ"]) != 2 {
+		t.Fatalf("同じキーワードへの複数回addは応答を積み増すはずが、%v件しか登録されていない", len(repo.items["g1"]["ぬるぽ"]))
+	}
+
+	removeMsg := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, Content: "<@bot> keyword remove ぬるぽ ガッ"}
+	if err := h.HandleMessage(ctx, removeMsg); err != nil {
+		t.Fatalf("HandleMessage() unexpected error = %v", err)
+	}
+	if !strings.Contains(sender.sentContent, "削除しました") {
+		t.Fatalf("HandleMessage() content = %q, want substring %q", sender.sentContent, "削除しました")
+	}
+	if got := repo.items["g1"]["ぬるぽ"]; len(got) != 1 || got[0] != "ｶﾞｯ" {
+		t.Fatalf("remove後の応答一覧 = %v, want [ｶﾞｯ] のみ残っている", got)
 	}
 }
 
@@ -117,8 +179,7 @@ func TestKeywordHandler_HandleMessage_AutoReply(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := newFakeKeywordRepository()
-			k, _ := keyword.New(0, "g1", "ぬるぽ", "ガッ")
-			repo.items["g1"] = append(repo.items["g1"], k)
+			repo.items["g1"] = map[string][]string{"ぬるぽ": {"ガッ"}}
 			uc := keywordUC.New(repo)
 			sender := &fakeMessageSender{}
 			h := NewKeywordHandler(uc, sender)
@@ -133,6 +194,29 @@ func TestKeywordHandler_HandleMessage_AutoReply(t *testing.T) {
 				t.Errorf("HandleMessage() content = %q, want %q", sender.sentContent, tt.wantReply)
 			}
 		})
+	}
+}
+
+func TestKeywordHandler_HandleMessage_AutoReply_RandomlyPicksResponse(t *testing.T) {
+	repo := newFakeKeywordRepository()
+	repo.items["g1"] = map[string][]string{"ぬるぽ": {"ガッ", "ｶﾞｯ"}}
+	uc := keywordUC.New(repo)
+	sender := &fakeMessageSender{}
+	h := NewKeywordHandler(uc, sender)
+
+	seen := map[string]bool{}
+	for range 50 {
+		msg := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false, Content: "さっきぬるぽ食らった"}
+		if err := h.HandleMessage(context.Background(), msg); err != nil {
+			t.Fatalf("HandleMessage() unexpected error = %v", err)
+		}
+		if sender.sentContent != "ガッ" && sender.sentContent != "ｶﾞｯ" {
+			t.Fatalf("HandleMessage() sentContent = %q, want ガッ or ｶﾞｯ", sender.sentContent)
+		}
+		seen[sender.sentContent] = true
+	}
+	if len(seen) < 2 {
+		t.Fatalf("50回試行して応答が%vのみ、複数応答からランダムに選ばれていない可能性がある", seen)
 	}
 }
 
@@ -191,6 +275,11 @@ func TestParseKeywordCommand(t *testing.T) {
 			name:    "異常系: @Rakuroが別の単語に連結している場合は除去せず、keyword以外の先頭語としてnilを返す",
 			content: "@Rakuroski keyword add ぬるぽ ガッ",
 			want:    nil,
+		},
+		{
+			name:    "正常系: removeコマンドはキーワードと応答の2引数を解析できる",
+			content: "<@bot> keyword remove ぬるぽ ガッ",
+			want:    &keywordCommand{Sub: "remove", Word: "ぬるぽ", Response: "ガッ"},
 		},
 	}
 	for _, tt := range tests {

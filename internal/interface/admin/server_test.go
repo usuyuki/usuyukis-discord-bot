@@ -39,7 +39,17 @@ func newFakeKeywordUseCase() *fakeKeywordUseCase {
 }
 
 func (f *fakeKeywordUseCase) Register(ctx context.Context, guildID, word, response string) error {
-	k, err := keyword.New(0, guildID, word, response)
+	for i, k := range f.items[guildID] {
+		if k.Word == word {
+			updated, err := keyword.New(k.ID, guildID, word, append(k.Responses, response))
+			if err != nil {
+				return err
+			}
+			f.items[guildID][i] = updated
+			return nil
+		}
+	}
+	k, err := keyword.New(0, guildID, word, []string{response})
 	if err != nil {
 		return err
 	}
@@ -47,7 +57,7 @@ func (f *fakeKeywordUseCase) Register(ctx context.Context, guildID, word, respon
 	return nil
 }
 
-func (f *fakeKeywordUseCase) Remove(ctx context.Context, guildID, word string) error {
+func (f *fakeKeywordUseCase) RemoveKeyword(ctx context.Context, guildID, word string) error {
 	kept := f.items[guildID][:0]
 	for _, k := range f.items[guildID] {
 		if k.Word != word {
@@ -55,6 +65,25 @@ func (f *fakeKeywordUseCase) Remove(ctx context.Context, guildID, word string) e
 		}
 	}
 	f.items[guildID] = kept
+	return nil
+}
+
+func (f *fakeKeywordUseCase) SetResponses(ctx context.Context, guildID, word string, responses []string) error {
+	for i, k := range f.items[guildID] {
+		if k.Word == word {
+			updated, err := keyword.New(k.ID, guildID, word, responses)
+			if err != nil {
+				return err
+			}
+			f.items[guildID][i] = updated
+			return nil
+		}
+	}
+	k, err := keyword.New(0, guildID, word, responses)
+	if err != nil {
+		return err
+	}
+	f.items[guildID] = append(f.items[guildID], k)
 	return nil
 }
 
@@ -130,6 +159,22 @@ func TestServer_KeywordCreateAndDelete(t *testing.T) {
 		}
 		if len(kw.items["g1"]) != 1 || kw.items["g1"][0].Word != "ぬるぽ" {
 			t.Errorf("keyword was not registered: %v", kw.items["g1"])
+		}
+	})
+
+	t.Run("正常系: フォームPOSTで応答一覧を改行区切りで丸ごと更新できる", func(t *testing.T) {
+		form := url.Values{"word": {"ぬるぽ"}, "responses": {"ガッ\nｶﾞｯ\n"}}
+		req := httptest.NewRequest(http.MethodPost, "/guilds/g1/keywords/update", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+
+		s.Handler().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("POST keywords/update status = %d, want %d", rec.Code, http.StatusSeeOther)
+		}
+		if len(kw.items["g1"]) != 1 || len(kw.items["g1"][0].Responses) != 2 {
+			t.Errorf("responses were not replaced: %v", kw.items["g1"])
 		}
 	})
 

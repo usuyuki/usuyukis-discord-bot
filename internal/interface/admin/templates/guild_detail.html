@@ -3,11 +3,18 @@
 
 <h2>キーワード自動応答</h2>
 <table>
-  <tr><th>キーワード</th><th>応答</th><th></th></tr>
+  <tr><th>キーワード</th><th>応答（複数ある場合はランダムに1つ選ばれます）</th><th></th></tr>
   {{range .Keywords}}
   <tr>
     <td>{{.Word}}</td>
-    <td>{{.Response}}</td>
+    <td>
+      <form class="inline" method="post" action="/guilds/{{$.GuildID}}/keywords/update">
+        <input type="hidden" name="word" value="{{.Word}}">
+        <textarea name="responses" rows="3" required>{{range .Responses}}{{.}}
+{{end}}</textarea>
+        <button type="submit">保存</button>
+      </form>
+    </td>
     <td>
       <form class="inline" method="post" action="/guilds/{{$.GuildID}}/keywords/delete">
         <input type="hidden" name="word" value="{{.Word}}">
