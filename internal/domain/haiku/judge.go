@@ -89,3 +89,61 @@ func Split(words []Word, pattern []int) (result []string, ok bool) {
 	}
 	return phrases, true
 }
+
+// EvaluateBestSplit finds a partition of words into len(pattern) contiguous groups
+// that minimizes the sum of absolute differences between the group mora counts and the pattern.
+func EvaluateBestSplit(words []Word, pattern []int) (bestCounts []int) {
+	if len(pattern) == 0 {
+		return nil
+	}
+	if len(words) < len(pattern) {
+		counts := make([]int, len(pattern))
+		for _, w := range words {
+			counts[0] += w.MoraCount
+		}
+		return counts
+	}
+
+	bestScore := -1
+	bestCounts = make([]int, len(pattern))
+
+	var search func(wordIdx int, groupIdx int, currentCounts []int)
+	search = func(wordIdx int, groupIdx int, currentCounts []int) {
+		if wordIdx == len(words) && groupIdx == len(pattern) {
+			score := 0
+			for i := 0; i < len(pattern); i++ {
+				diff := currentCounts[i] - pattern[i]
+				if diff < 0 {
+					score += -diff
+				} else {
+					score += diff
+				}
+			}
+			if bestScore == -1 || score < bestScore {
+				bestScore = score
+				copy(bestCounts, currentCounts)
+			}
+			return
+		}
+		
+		remainingGroups := len(pattern) - groupIdx
+		remainingWords := len(words) - wordIdx
+		if remainingWords < remainingGroups {
+			return
+		}
+		if wordIdx == len(words) || groupIdx == len(pattern) {
+			return
+		}
+
+		sum := 0
+		maxK := remainingWords - remainingGroups + 1
+		for k := 1; k <= maxK; k++ {
+			sum += words[wordIdx+k-1].MoraCount
+			currentCounts[groupIdx] = sum
+			search(wordIdx+k, groupIdx+1, currentCounts)
+		}
+	}
+
+	search(0, 0, make([]int, len(pattern)))
+	return bestCounts
+}

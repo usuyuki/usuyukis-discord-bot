@@ -51,6 +51,17 @@ func (u *UseCase) Detect(ctx context.Context, guildID, channelID, messageBody st
 	}
 
 	if isDebug {
+		if !ok {
+			formatPattern := func(p []int) string {
+				return strings.ReplaceAll(strings.Trim(fmt.Sprint(p), "[]"), " ", ",")
+			}
+			senryuResult := haiku.EvaluateBestSplit(words, haiku.HaikuPattern)
+			tankaResult := haiku.EvaluateBestSplit(words, haiku.TankaPattern)
+			contentBuilder.WriteString("\n\n【デバッグ: 字余り・字足らず判定】\n")
+			contentBuilder.WriteString(fmt.Sprintf("川柳判定: 期待:%s　結果:%s\n", formatPattern(haiku.HaikuPattern), formatPattern(senryuResult)))
+			contentBuilder.WriteString(fmt.Sprintf("短歌判定: 期待:%s　結果:%s", formatPattern(haiku.TankaPattern), formatPattern(tankaResult)))
+		}
+
 		contentBuilder.WriteString("\n\n【デバッグ: 形態素解析結果】\n```text\n")
 		for _, w := range words {
 			contentBuilder.WriteString(fmt.Sprintf("%s\t%s\t%s\t(%d拍)\n", w.Surface, w.Reading, w.POS, w.MoraCount))
