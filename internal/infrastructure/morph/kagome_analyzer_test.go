@@ -44,3 +44,14 @@ func TestKagomeAnalyzer_AnalyzeWords(t *testing.T) {
 		})
 	}
 }
+
+func TestKagomeAnalyzer_Name(t *testing.T) {
+	analyzer, err := NewKagomeAnalyzer()
+	if err != nil {
+		t.Fatalf("NewKagomeAnalyzer() unexpected error = %v", err)
+	}
+
+	if got := analyzer.Name(); got == "" {
+		t.Errorf("Name() = %q, want non-empty string", got)
+	}
+}
