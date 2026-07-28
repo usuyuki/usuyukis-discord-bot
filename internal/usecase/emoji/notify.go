@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	domainEmoji "github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/notifychannel"
 )
 
@@ -18,10 +19,10 @@ func New(channelFinder NotifyChannelFinder, sender MessageSender) *UseCase {
 	return &UseCase{channelFinder: channelFinder, sender: sender}
 }
 
-// NotifyAdded は追加された絵文字名のリストを、ギルドに登録された通知先チャンネルへ通知する。
+// NotifyAdded は追加された絵文字のリストを、ギルドに登録された通知先チャンネルへ通知する。
 // 通知先が未登録の場合は何もしない（fallback先を持たない仕様）
-func (u *UseCase) NotifyAdded(ctx context.Context, guildID string, addedEmojiNames []string) error {
-	if len(addedEmojiNames) == 0 {
+func (u *UseCase) NotifyAdded(ctx context.Context, guildID string, addedEmojis []domainEmoji.Emoji) error {
+	if len(addedEmojis) == 0 {
 		return nil
 	}
 
@@ -33,6 +34,11 @@ func (u *UseCase) NotifyAdded(ctx context.Context, guildID string, addedEmojiNam
 		return nil
 	}
 
-	content := "絵文字が追加されました: " + strings.Join(addedEmojiNames, ", ")
+	// 絵文字画像自体が見えるよう、名前だけでなくタグ（<:name:id>形式）も併記する
+	descriptions := make([]string, 0, len(addedEmojis))
+	for _, e := range addedEmojis {
+		descriptions = append(descriptions, e.Tag()+" "+e.Name())
+	}
+	content := "新しい絵文字が追加されたぱか: " + strings.Join(descriptions, ", ")
 	return u.sender.SendMessage(ctx, nc.ChannelID, content)
 }

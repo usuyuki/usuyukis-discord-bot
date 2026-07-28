@@ -3,6 +3,8 @@ package discordbot
 import (
 	"context"
 	"strings"
+
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
 )
 
 // IncomingMessage はdiscordgoのMessageCreateイベントを薄くラップした型。
@@ -60,8 +62,8 @@ func isWordBoundaryRune(lower string, pos int) bool {
 
 // IncomingEmojiUpdate はdiscordgoのGuildEmojisUpdateイベントを薄くラップした型
 type IncomingEmojiUpdate struct {
-	GuildID         string
-	AddedEmojiNames []string
+	GuildID     string
+	AddedEmojis []emoji.Emoji
 }
 
 // MessageHandler はメッセージ受信時に処理を行うプラグインの契約。
