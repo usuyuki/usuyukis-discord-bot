@@ -55,6 +55,14 @@ Bot機能を1つ追加する際は以下の順序で実装する（詳細は [ad
 
 コードを変更したら、コミット前に `make check` を通すこと。
 
+## CI/CD
+
+`.github/workflows/` にGitHub Actions定義がある（設計判断は [adr/0006_ci_build_pipeline.md](./adr/0006_ci_build_pipeline.md) 参照）。
+
+- `100_test.yml` / `101_lint.yml`: PRごとに `go test` / `go vet` / `gofmt` / golangci-lintを実行する。golangci-lintは `golangci-lint-action` ではなく `go tool golangci-lint run` を使う（`go.mod` の `tool` ディレクティブで管理しているバージョンとCIのバージョンを一致させるため）。**ローカルの `make lint` が通るのにCIだけ落ちる場合、まずはこのコマンドの差異ではなくローカルの `go.sum`/tool バージョンがコミット済みのものと一致しているか疑うこと。**
+- `900_build.yml`: mainブランチへのpush時に `linux/amd64,linux/arm64` のマルチアーキテクチャDockerイメージをビルドし `ghcr.io/usuyuki/usuyukis-discord-bot` へpushする。
+- `internal/infrastructure/postgres` に実DBを使うテストを追加した場合は、`100_test.yml` にPostgreSQLサービスコンテナを追加すること（現状はテストファイルがなくDB不要のため未設定）。
+
 ## コメント方針
 
 - 作成した関数にはコメントを入れて何をしているかを書く

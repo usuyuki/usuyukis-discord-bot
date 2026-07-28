@@ -1,0 +1,39 @@
+domain:
+- changed-files:
+  - any-glob-to-any-file: 'internal/domain/**/*'
+
+usecase:
+- changed-files:
+  - any-glob-to-any-file: 'internal/usecase/**/*'
+
+infrastructure:
+- changed-files:
+  - any-glob-to-any-file: 'internal/infrastructure/**/*'
+
+interface:
+- changed-files:
+  - any-glob-to-any-file: 'internal/interface/**/*'
+
+db:
+- changed-files:
+  - any-glob-to-any-file: 'migrations/**/*'
+
+docker:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'Dockerfile'
+    - 'compose.yml'
+
+docs:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'adr/**/*'
+    - '*.md'
+
+config:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'Makefile'
+    - '.golangci.yml'
+    - '.env.example'
+    - '.github/**/*'

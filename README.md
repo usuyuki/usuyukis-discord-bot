@@ -103,6 +103,17 @@ docker compose up -d --build
 
 golangci-lintは `go.mod` の `tool` ディレクティブで管理しているため、追加のインストール作業なしに `go tool golangci-lint` として実行できる。設定内容は [`.golangci.yml`](./.golangci.yml) を参照。
 
+### CI
+
+`.github/workflows/` にGitHub Actionsのワークフローを配置している。詳細な設計判断は [adr/0006_ci_build_pipeline.md](./adr/0006_ci_build_pipeline.md) を参照。
+
+| ワークフロー | トリガー | 内容 |
+|---|---|---|
+| `000_labeler.yml` | PR作成/更新時 | 変更ファイルに応じてPRへ自動でラベルを付与する |
+| `100_test.yml` | PR作成/更新時（`*.go`, `go.mod`, `go.sum` 変更時） | `go test -v ./...` とカバレッジ計測、Codecovへのアップロード |
+| `101_lint.yml` | PR作成/更新時（`*.go`, `go.mod`, `go.sum`, `.golangci.yml` 変更時） | `go vet`、`gofmt` の整形チェック、`go tool golangci-lint run` |
+| `900_build.yml` | mainブランチへのpush時 | `linux/amd64`/`linux/arm64` のマルチアーキテクチャDockerイメージをビルドし `ghcr.io/usuyuki/usuyukis-discord-bot` へpushする |
+
 ### レイヤー依存方向の確認
 
 `domain` と `usecase` パッケージが外部ライブラリ（discordgo, pgx, kagome, net/http）に依存していないことを確認する。
