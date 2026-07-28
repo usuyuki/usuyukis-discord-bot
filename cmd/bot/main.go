@@ -69,7 +69,7 @@ func run() error {
 
 	keywordUseCase := keywordUC.New(keywordRepo)
 	notifyChannelUseCase := notifychannelUC.New(notifyChannelRepo)
-	haikuUseCase := haikuUC.New(analyzer, notifyChannelRepo, messageSender)
+	haikuUseCase := haikuUC.New(analyzer, messageSender)
 	emojiUseCase := emojiUC.New(notifyChannelRepo, messageSender)
 
 	router := discordbot.NewRouter()

@@ -2,8 +2,9 @@ package morph
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/ikawaha/kagome-dict/ipa"
+	"github.com/ikawaha/kagome-dict/uni"
 	"github.com/ikawaha/kagome/v2/tokenizer"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/haiku"
@@ -15,9 +16,9 @@ type KagomeAnalyzer struct {
 	tokenizer *tokenizer.Tokenizer
 }
 
-// NewKagomeAnalyzer はIPA辞書を読み込んだKagomeAnalyzerを生成する
+// NewKagomeAnalyzer はUniDic辞書を読み込んだKagomeAnalyzerを生成する
 func NewKagomeAnalyzer() (*KagomeAnalyzer, error) {
-	t, err := tokenizer.New(ipa.Dict(), tokenizer.OmitBosEos())
+	t, err := tokenizer.New(uni.Dict(), tokenizer.OmitBosEos())
 	if err != nil {
 		return nil, fmt.Errorf("morph: failed to create tokenizer: %w", err)
 	}
@@ -30,15 +31,21 @@ func (a *KagomeAnalyzer) AnalyzeWords(text string) ([]haiku.Word, error) {
 	tokens := a.tokenizer.Tokenize(text)
 	words := make([]haiku.Word, 0, len(tokens))
 	for _, tok := range tokens {
-		reading, ok := tok.Reading()
+		reading, ok := tok.Pronunciation()
 		if !ok || reading == "" {
 			reading = tok.Surface
 		}
+		pos := strings.Join(tok.POS(), "-")
 		morae := haiku.SplitMorae(reading)
 		if len(morae) == 0 {
 			continue
 		}
-		words = append(words, haiku.Word{Surface: tok.Surface, MoraCount: len(morae)})
+		words = append(words, haiku.Word{
+			Surface:   tok.Surface,
+			Reading:   reading,
+			POS:       pos,
+			MoraCount: len(morae),
+		})
 	}
 	return words, nil
 }

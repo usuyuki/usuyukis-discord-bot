@@ -26,7 +26,10 @@ func SplitMorae(reading string) []string {
 
 // Word は形態素解析で得られる形態素1つ分の情報。
 // Surface は元の表層形（漢字仮名混じりの原文表記）、MoraCount はその読みのモーラ数
+// Reading は読み仮名、POS は品詞情報
 type Word struct {
 	Surface   string
+	Reading   string
+	POS       string
 	MoraCount int
 }

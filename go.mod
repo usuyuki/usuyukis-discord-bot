@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
-	github.com/ikawaha/kagome-dict/ipa v1.2.6
+	github.com/ikawaha/kagome-dict/uni v1.2.6
 	github.com/ikawaha/kagome/v2 v2.11.0
 	github.com/jackc/pgx/v5 v5.10.0
 )
