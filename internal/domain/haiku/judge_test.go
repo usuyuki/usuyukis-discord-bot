@@ -161,3 +161,80 @@ func equalStringSlice(a, b []string) bool {
 	}
 	return true
 }
+
+func TestEvaluateBestSplit(t *testing.T) {
+	tests := []struct {
+		name    string
+		words   []Word
+		pattern []int
+		want    []int
+	}{
+		{
+			name: "正常系: 単語境界がpatternに一致する場合はpatternと同じ内訳を返す",
+			words: []Word{
+				{Surface: "古池", MoraCount: 3},
+				{Surface: "や", MoraCount: 2},
+				{Surface: "蛙", MoraCount: 3},
+				{Surface: "飛び込む", MoraCount: 4},
+				{Surface: "水の", MoraCount: 3},
+				{Surface: "音", MoraCount: 2},
+			},
+			pattern: []int{5, 7, 5},
+			want:    []int{5, 7, 5},
+		},
+		{
+			name: "正常系: 単語数がpatternの句数より少ない場合は差の総和が最小になるよう単語をまとめる",
+			words: []Word{
+				{Surface: "今日", MoraCount: 2},
+				{Surface: "はいい", MoraCount: 3},
+				{Surface: "天気", MoraCount: 3},
+				{Surface: "ですね", MoraCount: 3},
+			},
+			pattern: []int{5, 7, 5, 7, 7},
+			want:    []int{0, 0, 0, 0, 11},
+		},
+		{
+			name: "正常系: 字余りの単語があっても各句の合計との差が最小になる内訳を返す",
+			words: []Word{
+				{Surface: "今日", MoraCount: 2},
+				{Surface: "はいい", MoraCount: 3},
+				{Surface: "天気", MoraCount: 3},
+				{Surface: "ですね", MoraCount: 3},
+			},
+			pattern: []int{5, 7, 5},
+			want:    []int{2, 6, 3},
+		},
+		{
+			name:    "異常系: patternが空の場合はnilを返す",
+			words:   []Word{{Surface: "音", MoraCount: 2}},
+			pattern: []int{},
+			want:    nil,
+		},
+		{
+			name:    "異常系: wordsが空の場合は全区分が0拍になる",
+			words:   []Word{},
+			pattern: []int{5, 7, 5},
+			want:    []int{0, 0, 0},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := EvaluateBestSplit(tt.words, tt.pattern)
+			if !equalIntSlice(got, tt.want) {
+				t.Errorf("EvaluateBestSplit() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func equalIntSlice(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
