@@ -10,11 +10,20 @@ import (
 type Router struct {
 	messageHandlers     []MessageHandler
 	emojiUpdateHandlers []EmojiUpdateHandler
+	// devChannelID が空でない場合、DispatchMessageはこのチャンネル以外の
+	// メッセージを全ハンドラへ配送しない（dev mode）
+	devChannelID string
 }
 
 // NewRouter はRouterを生成する
 func NewRouter() *Router {
 	return &Router{}
+}
+
+// SetDevChannelID はdev modeを有効化し、以後DispatchMessageがchannelID以外の
+// メッセージを配送しないようにする。空文字を渡すとdev modeは無効化される
+func (r *Router) SetDevChannelID(channelID string) {
+	r.devChannelID = channelID
 }
 
 // RegisterMessageHandler はMessageHandlerを登録する
@@ -28,8 +37,12 @@ func (r *Router) RegisterEmojiUpdateHandler(h EmojiUpdateHandler) {
 }
 
 // DispatchMessage は登録済み全MessageHandlerへメッセージイベントを配送する。
+// dev modeが有効な場合、devChannelID以外からのメッセージは配送せず無視する。
 // 1つのハンドラのエラーが他のハンドラの実行を妨げないようログ出力のみ行い処理を続行する
 func (r *Router) DispatchMessage(ctx context.Context, msg IncomingMessage) {
+	if r.devChannelID != "" && msg.ChannelID != r.devChannelID {
+		return
+	}
 	for _, h := range r.messageHandlers {
 		if err := h.HandleMessage(ctx, msg); err != nil {
 			log.Printf("discordbot: message handler error: %v", err)

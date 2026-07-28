@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/haiku"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/notifychannel"
 	haikuUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/haiku"
 )
 
-type fakeAnalyzer struct{ result []int }
+type fakeAnalyzer struct{ result []haiku.Word }
 
-func (f *fakeAnalyzer) MoraCountsByWord(text string) ([]int, error) { return f.result, nil }
+func (f *fakeAnalyzer) AnalyzeWords(text string) ([]haiku.Word, error) { return f.result, nil }
 
 type fakeChannelFinder struct{ ok bool }
 
@@ -19,35 +20,46 @@ func (f *fakeChannelFinder) Find(ctx context.Context, guildID string, purpose no
 }
 
 func TestHaikuHandler_HandleMessage(t *testing.T) {
+	haikuWords := []haiku.Word{
+		{Surface: "ふる", MoraCount: 5},
+		{Surface: "いけや", MoraCount: 7},
+		{Surface: "かわず", MoraCount: 5},
+	}
+	notHaikuWords := []haiku.Word{
+		{Surface: "ふるい", MoraCount: 4},
+		{Surface: "けや", MoraCount: 7},
+		{Surface: "かわず", MoraCount: 5},
+	}
+
 	tests := []struct {
 		name          string
 		msg           IncomingMessage
-		moraCounts    []int
+		words         []haiku.Word
 		wantSentCount int
 	}{
 		{
 			name:          "正常系: メンションでない575投稿は通知を送信する",
 			msg:           IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false},
-			moraCounts:    []int{5, 7, 5},
+			words:         haikuWords,
 			wantSentCount: 1,
 		},
 		{
 			name:          "異常系: Botへのメンションは俳句判定の対象外",
 			msg:           IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true},
-			moraCounts:    []int{5, 7, 5},
+			words:         haikuWords,
 			wantSentCount: 0,
 		},
 		{
 			name:          "異常系: 575にならなければ通知しない",
 			msg:           IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false},
-			moraCounts:    []int{4, 7, 5},
+			words:         notHaikuWords,
 			wantSentCount: 0,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &fakeMessageSender{}
-			uc := haikuUC.New(&fakeAnalyzer{result: tt.moraCounts}, &fakeChannelFinder{ok: false}, sender)
+			uc := haikuUC.New(&fakeAnalyzer{result: tt.words}, &fakeChannelFinder{ok: false}, sender)
 			h := NewHaikuHandler(uc)
 
 			if err := h.HandleMessage(context.Background(), tt.msg); err != nil {

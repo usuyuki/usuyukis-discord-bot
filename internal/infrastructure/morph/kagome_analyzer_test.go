@@ -6,7 +6,7 @@ import (
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/haiku"
 )
 
-func TestKagomeAnalyzer_MoraCountsByWord(t *testing.T) {
+func TestKagomeAnalyzer_AnalyzeWords(t *testing.T) {
 	analyzer, err := NewKagomeAnalyzer()
 	if err != nil {
 		t.Fatalf("NewKagomeAnalyzer() unexpected error = %v", err)
@@ -30,12 +30,16 @@ func TestKagomeAnalyzer_MoraCountsByWord(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			counts, err := analyzer.MoraCountsByWord(tt.text)
+			words, err := analyzer.AnalyzeWords(tt.text)
 			if err != nil {
-				t.Fatalf("MoraCountsByWord() unexpected error = %v", err)
+				t.Fatalf("AnalyzeWords() unexpected error = %v", err)
+			}
+			counts := make([]int, len(words))
+			for i, w := range words {
+				counts[i] = w.MoraCount
 			}
 			if got := haiku.Judge(counts); got != tt.wantJudge {
-				t.Errorf("Judge(MoraCountsByWord(%q)) = %v (counts=%v), want %v", tt.text, got, counts, tt.wantJudge)
+				t.Errorf("Judge(AnalyzeWords(%q)) = %v (counts=%v), want %v", tt.text, got, counts, tt.wantJudge)
 			}
 		})
 	}

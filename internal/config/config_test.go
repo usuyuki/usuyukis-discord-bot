@@ -43,6 +43,23 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "正常系: DEV_MODEとDEV_CHANNEL_IDを指定するとdev modeが有効になる",
+			values: map[string]string{
+				"DISCORD_BOT_TOKEN": "token123",
+				"DATABASE_URL":      "postgres://localhost/db",
+				"DEV_MODE":          "true",
+				"DEV_CHANNEL_ID":    "channel123",
+			},
+			wantErr: false,
+			want: Config{
+				DiscordBotToken: "token123",
+				DatabaseURL:     "postgres://localhost/db",
+				AdminPort:       "8080",
+				DevMode:         true,
+				DevChannelID:    "channel123",
+			},
+		},
+		{
 			name: "異常系: DISCORD_BOT_TOKENが未設定だとエラーになる",
 			values: map[string]string{
 				"DATABASE_URL": "postgres://localhost/db",
@@ -53,6 +70,15 @@ func TestLoad(t *testing.T) {
 			name: "異常系: DATABASE_URLが未設定だとエラーになる",
 			values: map[string]string{
 				"DISCORD_BOT_TOKEN": "token123",
+			},
+			wantErr: true,
+		},
+		{
+			name: "異常系: DEV_MODEがtrueなのにDEV_CHANNEL_IDが未設定だとエラーになる",
+			values: map[string]string{
+				"DISCORD_BOT_TOKEN": "token123",
+				"DATABASE_URL":      "postgres://localhost/db",
+				"DEV_MODE":          "true",
 			},
 			wantErr: true,
 		},

@@ -4,9 +4,9 @@
 
 | 機能 | 内容 |
 |---|---|
-| 打刻Bot | `@Rakuro` のようにBotへメンションすると現在時刻を返信する |
+| 打刻Bot | 発言本文に `@Rakuro`（大文字小文字を区別しない）という文字列が含まれると現在時刻を返信する |
 | キーワード自動応答 | `@Bot keyword add <キーワード> <応答>` で登録したキーワードが発言に含まれていたら自動応答する（例: ぬるぽ→ガッ） |
-| 俳句検知 | 形態素解析（[kagome](https://github.com/ikawaha/kagome)）で投稿の拍数を数え、5-7-5と判定できたら通知する |
+| 俳句・短歌検知 | 形態素解析（[kagome](https://github.com/ikawaha/kagome)）で投稿の拍数を数え、5-7-5（俳句）または5-7-5-7-7（短歌）と判定できたら句読点区切りで通知する |
 | 絵文字追加通知 | ギルドへ絵文字が追加されたことを検知して通知する |
 | 管理画面 | キーワード・通知先チャンネルをブラウザから編集できる簡易CMS（認証なし・localhost限定） |
 
@@ -60,7 +60,7 @@ adr/                             … Architecture Decision Record
 1. [Discord Developer Portal](https://discord.com/developers/applications) で新規アプリケーションを作成
 2. 「Bot」タブでBotを追加し、トークンを発行（`.env` の `DISCORD_BOT_TOKEN` に設定）
 3. 「Bot」タブの **Privileged Gateway Intents** で以下を有効化
-   - `MESSAGE CONTENT INTENT`（キーワード検知・俳句判定に必須）
+   - `MESSAGE CONTENT INTENT`（キーワード検知・俳句/短歌判定・打刻Botの本文メンション検知に必須）
 4. 「OAuth2 > URL Generator」で `bot` スコープと以下の権限を選択し、生成されたURLからサーバーへ招待
    - `Send Messages`, `Read Message History`, `View Channels`
 
