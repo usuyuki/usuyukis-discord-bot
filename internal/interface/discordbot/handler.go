@@ -7,6 +7,11 @@ import (
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
 )
 
+// MessageSender はDiscordチャンネルへの返信を行うport
+type MessageSender interface {
+	SendMessage(ctx context.Context, channelID, content string) error
+}
+
 // IncomingMessage はdiscordgoのMessageCreateイベントを薄くラップした型。
 // usecase層にdiscordgoの型が漏れないようにするための境界
 type IncomingMessage struct {

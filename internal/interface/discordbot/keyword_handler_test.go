@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/keyword"
 	keywordUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/keyword"
@@ -217,6 +218,24 @@ func TestKeywordHandler_HandleMessage_AutoReply_RandomlyPicksResponse(t *testing
 	}
 	if len(seen) < 2 {
 		t.Fatalf("50回試行して応答が%vのみ、複数応答からランダムに選ばれていない可能性がある", seen)
+	}
+}
+
+func TestKeywordHandler_HandleMessage_AutoReply_ExpandsNowPlaceholder(t *testing.T) {
+	repo := newFakeKeywordRepository()
+	repo.items["g1"] = map[string][]string{"今何時": {"今は{$now}だよ"}}
+	uc := keywordUC.New(repo)
+	sender := &fakeMessageSender{}
+	h := NewKeywordHandler(uc, sender)
+	h.now = func() time.Time { return time.Date(2026, 7, 28, 14, 32, 10, 0, time.UTC) }
+
+	msg := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false, Content: "今何時"}
+	if err := h.HandleMessage(context.Background(), msg); err != nil {
+		t.Fatalf("HandleMessage() unexpected error = %v", err)
+	}
+	want := "今は2026-07-28 23:32:10だよ"
+	if sender.sentContent != want {
+		t.Fatalf("HandleMessage() content = %q, want %q", sender.sentContent, want)
 	}
 }
 
