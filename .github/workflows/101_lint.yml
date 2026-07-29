@@ -1,0 +1,55 @@
+name: 【bot】Go Lint
+
+on:
+  pull_request:
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - ".golangci.yml"
+      - ".github/**"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: false # setup-go の組み込みキャッシュを無効化し、直後の actions/cache で一元管理する
+
+      - name: Cache Go modules
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt check
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt が未整形のファイルを検出しました。ローカルで 'make format' を実行してください:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # golangci-lint は go.mod の tool ディレクティブでバージョン管理しているため、
+      # golangci-lint-action で別途バージョンを指定せず `go tool` 経由でローカルと同一バージョンを実行する
+      - name: golangci-lint
+        run: go tool golangci-lint run
