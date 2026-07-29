@@ -198,7 +198,7 @@ func TestServer_KeywordCreateAndDelete(t *testing.T) {
 func TestServer_NotifyChannelSet(t *testing.T) {
 	s, _, nc := newTestServer(t)
 
-	form := url.Values{"purpose": {"haiku"}, "channel_id": {"c1"}}
+	form := url.Values{"purpose": {"emoji"}, "channel_id": {"c1"}}
 	req := httptest.NewRequest(http.MethodPost, "/guilds/g1/notify-channels", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
@@ -208,7 +208,7 @@ func TestServer_NotifyChannelSet(t *testing.T) {
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("POST notify-channels status = %d, want %d", rec.Code, http.StatusSeeOther)
 	}
-	got, ok, _ := nc.Get(context.Background(), "g1", notifychannel.PurposeHaiku)
+	got, ok, _ := nc.Get(context.Background(), "g1", notifychannel.PurposeEmoji)
 	if !ok || got.ChannelID != "c1" {
 		t.Errorf("notify channel was not set correctly: ok=%v got=%v", ok, got)
 	}

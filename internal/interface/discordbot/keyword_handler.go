@@ -25,7 +25,7 @@ func NewKeywordHandler(uc *keywordUC.UseCase, sender MessageSender) *KeywordHand
 	return &KeywordHandler{uc: uc, sender: sender, now: time.Now}
 }
 
-// HandleMessage はBotへの構造化メンション（MentionsBotID）であればコマンドとして解釈し、
+// HandleMessage はBotへの構造化メンションであればコマンドとして解釈し、
 // そうでなければ通常メッセージとして登録済みキーワードとのマッチを試みる
 func (h *KeywordHandler) HandleMessage(ctx context.Context, msg IncomingMessage) error {
 	if msg.MentionsBotID {
@@ -35,7 +35,7 @@ func (h *KeywordHandler) HandleMessage(ctx context.Context, msg IncomingMessage)
 }
 
 func (h *KeywordHandler) handleCommand(ctx context.Context, msg IncomingMessage) error {
-	args := parseKeywordCommand(msg.Content)
+	args := parseKeywordCommand(msg.Content, msg.BotID)
 	if args == nil {
 		return nil
 	}
@@ -46,7 +46,7 @@ func (h *KeywordHandler) handleCommand(ctx context.Context, msg IncomingMessage)
 			return h.sender.SendMessage(ctx, msg.ChannelID, "キーワード登録には管理者権限が必要です")
 		}
 		if args.Word == "" || args.Response == "" {
-			return h.sender.SendMessage(ctx, msg.ChannelID, "使い方: @Bot keyword add <キーワード> <応答>")
+			return h.sender.SendMessage(ctx, msg.ChannelID, fmt.Sprintf("使い方: %s keyword add <キーワード> <応答>", mentionTag(msg.BotID)))
 		}
 		if err := h.uc.Register(ctx, msg.GuildID, args.Word, args.Response); err != nil {
 			return err
@@ -58,7 +58,7 @@ func (h *KeywordHandler) handleCommand(ctx context.Context, msg IncomingMessage)
 			return h.sender.SendMessage(ctx, msg.ChannelID, "キーワード削除には管理者権限が必要です")
 		}
 		if args.Word == "" {
-			return h.sender.SendMessage(ctx, msg.ChannelID, "使い方: @Bot keyword remove <キーワード> [応答]")
+			return h.sender.SendMessage(ctx, msg.ChannelID, fmt.Sprintf("使い方: %s keyword remove <キーワード> [応答]", mentionTag(msg.BotID)))
 		}
 		// 応答を指定した場合はその応答のみ削除し、未指定の場合はキーワードごと全応答を削除する
 		if args.Response == "" {
@@ -105,16 +105,8 @@ type keywordCommand struct {
 // parseKeywordCommand はメンションを除いたメッセージ本文から
 // "keyword add|remove|list ..." 形式のコマンドを解析する。
 // "keyword"で始まらない場合はnilを返す（他のコマンドやただのメンションと区別するため）
-func parseKeywordCommand(content string) *keywordCommand {
-	fields := strings.Fields(content)
-	// メンション文字列（<@123456>等）を除去してからkeywordコマンドを探す
-	filtered := make([]string, 0, len(fields))
-	for _, f := range fields {
-		if strings.HasPrefix(f, "<@") && strings.HasSuffix(f, ">") {
-			continue
-		}
-		filtered = append(filtered, f)
-	}
+func parseKeywordCommand(content, botID string) *keywordCommand {
+	filtered := stripMentionTokens(strings.Fields(content), botID)
 	if len(filtered) == 0 || filtered[0] != "keyword" {
 		return nil
 	}

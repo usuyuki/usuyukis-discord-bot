@@ -90,7 +90,6 @@ func (s *Server) handleGuildDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	haikuChannelName := channelNameForPurpose(ctx, s, guildID, notifychannel.PurposeHaiku, channels)
 	emojiChannelName := channelNameForPurpose(ctx, s, guildID, notifychannel.PurposeEmoji, channels)
 
 	data := struct {
@@ -99,7 +98,6 @@ func (s *Server) handleGuildDetail(w http.ResponseWriter, r *http.Request) {
 		GuildName        string
 		Keywords         []keyword.Keyword
 		Channels         []ChannelInfo
-		HaikuChannelName string
 		EmojiChannelName string
 	}{
 		Title:            "ギルド詳細",
@@ -107,7 +105,6 @@ func (s *Server) handleGuildDetail(w http.ResponseWriter, r *http.Request) {
 		GuildName:        s.guilds.GuildName(guildID),
 		Keywords:         keywords,
 		Channels:         channels,
-		HaikuChannelName: haikuChannelName,
 		EmojiChannelName: emojiChannelName,
 	}
 	s.render(w, "guild_detail.html", data)

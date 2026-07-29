@@ -10,11 +10,10 @@ func TestNew(t *testing.T) {
 		channelID string
 		wantErr   error
 	}{
-		{name: "正常系: haiku用途で全項目が埋まっていれば生成できる", guildID: "g1", purpose: PurposeHaiku, channelID: "c1", wantErr: nil},
 		{name: "正常系: emoji用途で全項目が埋まっていれば生成できる", guildID: "g1", purpose: PurposeEmoji, channelID: "c1", wantErr: nil},
-		{name: "異常系: guildIDが空文字だとErrEmptyGuildIDになる", guildID: "", purpose: PurposeHaiku, channelID: "c1", wantErr: ErrEmptyGuildID},
+		{name: "異常系: guildIDが空文字だとErrEmptyGuildIDになる", guildID: "", purpose: PurposeEmoji, channelID: "c1", wantErr: ErrEmptyGuildID},
 		{name: "異常系: purposeが未定義値だとErrInvalidPurposeになる", guildID: "g1", purpose: Purpose("unknown"), channelID: "c1", wantErr: ErrInvalidPurpose},
-		{name: "異常系: channelIDが空文字だとErrEmptyChannelIDになる", guildID: "g1", purpose: PurposeHaiku, channelID: "", wantErr: ErrEmptyChannelID},
+		{name: "異常系: channelIDが空文字だとErrEmptyChannelIDになる", guildID: "g1", purpose: PurposeEmoji, channelID: "", wantErr: ErrEmptyChannelID},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -32,7 +31,6 @@ func TestPurpose_IsValid(t *testing.T) {
 		purpose Purpose
 		want    bool
 	}{
-		{name: "正常系: haikuは有効な値", purpose: PurposeHaiku, want: true},
 		{name: "正常系: emojiは有効な値", purpose: PurposeEmoji, want: true},
 		{name: "異常系: 未定義の値は無効", purpose: Purpose("unknown"), want: false},
 		{name: "異常系: 空文字は無効", purpose: Purpose(""), want: false},

@@ -27,16 +27,18 @@ func TestHaikuHandler_HandleMessage(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		msg           IncomingMessage
-		words         []haiku.Word
-		wantSentCount int
+		name            string
+		msg             IncomingMessage
+		words           []haiku.Word
+		wantSentCount   int
+		wantSentChannel string
 	}{
 		{
-			name:          "正常系: メンションでない575投稿は通知を送信する",
-			msg:           IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false},
-			words:         haikuWords,
-			wantSentCount: 1,
+			name:            "正常系: メンションでない575投稿は投稿元チャンネルへ通知を送信する",
+			msg:             IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false},
+			words:           haikuWords,
+			wantSentCount:   1,
+			wantSentChannel: "c1",
 		},
 		{
 			name:          "異常系: Botへのメンションは川柳判定の対象外",
@@ -45,10 +47,11 @@ func TestHaikuHandler_HandleMessage(t *testing.T) {
 			wantSentCount: 0,
 		},
 		{
-			name:          "正常系: 本文にテキストの@Rakuro表記が含まれていても構造化メンションでなければ川柳判定の対象になる",
-			msg:           IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false, Content: "@Rakuro ふるいけやかわず"},
-			words:         haikuWords,
-			wantSentCount: 1,
+			name:            "正常系: 本文中のテキストの@メンション風表記はBotへのメンションとして特別扱いされず、通常投稿として川柳判定される",
+			msg:             IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false, Content: "@bot ふるいけやかわず"},
+			words:           haikuWords,
+			wantSentCount:   1,
+			wantSentChannel: "c1",
 		},
 		{
 			name:          "異常系: 575にならなければ通知しない",
@@ -72,6 +75,9 @@ func TestHaikuHandler_HandleMessage(t *testing.T) {
 			}
 			if gotCount != tt.wantSentCount {
 				t.Errorf("HandleMessage() sent count = %d, want %d", gotCount, tt.wantSentCount)
+			}
+			if sender.called && sender.sentChannelID != tt.wantSentChannel {
+				t.Errorf("HandleMessage() sent channel = %q, want %q", sender.sentChannelID, tt.wantSentChannel)
 			}
 		})
 	}

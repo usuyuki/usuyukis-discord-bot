@@ -4,9 +4,10 @@
 
 | 機能 | 内容 |
 |---|---|
-| キーワード自動応答 | `@Bot keyword add <キーワード> <応答>` で登録したキーワードが発言に含まれていたら自動応答する（例: ぬるぽ→ガッ）。同じキーワードに複数の応答を登録でき、その場合はマッチ時にランダムで1つ選ばれる。`keyword remove <キーワード> <応答>` で特定の応答のみ削除、`keyword remove <キーワード>`（応答省略）でキーワードごと削除。応答文言に `{$now}` と入れるとマッチ時の現在日時（JST）に展開されるため、打刻Bot的な用途（例: `@Rakuro` → `今は{$now}だよ`）もこの仕組みで登録する |
-| 俳句・短歌検知 | 形態素解析（[kagome](https://github.com/ikawaha/kagome)）で投稿の拍数を数え、5-7-5（俳句）または5-7-5-7-7（短歌）と判定できたら句読点区切りで通知する |
+| キーワード自動応答 | Botへの構造化メンション（`@Bot keyword add <キーワード> <応答>`。`@Bot`部分は実際にDiscord上でBotをメンションする操作を指す）で登録したキーワードが発言に含まれていたら自動応答する（例: ぬるぽ→ガッ）。同じキーワードに複数の応答を登録でき、その場合はマッチ時にランダムで1つ選ばれる。`keyword remove <キーワード> <応答>` で特定の応答のみ削除、`keyword remove <キーワード>`（応答省略）でキーワードごと削除。応答文言に `{$now}` と入れるとマッチ時の現在日時（JST）に展開されるため、打刻Bot的な用途（例: 時刻を尋ねるキーワード → `今は{$now}だよ`）もこの仕組みで登録する |
+| 俳句・短歌検知 | 形態素解析（[kagome](https://github.com/ikawaha/kagome)）で投稿の拍数を数え、5-7-5（俳句）または5-7-5-7-7（短歌）と判定できたら句読点区切りで**投稿元チャンネルへ**通知する（他チャンネルへは通知しない） |
 | 絵文字追加通知 | ギルドへ絵文字が追加されたことを検知して通知する |
+| ヘルプ表示 | `@Bot help` または `@Bot usage` とメンションすると、この機能一覧をチャット上に返信する |
 | 管理画面 | キーワード・通知先チャンネルをブラウザから編集できる簡易CMS（認証なし・localhost限定） |
 | devモード | `DEV_MODE=true` 設定時、`DEV_CHANNEL_ID` で指定したチャンネル以外の投稿には全機能が反応しなくなる。絵文字追加通知はチャンネルを持たないため、dev mode中は全ギルドで通知自体を停止する（動作確認時の誤爆防止） |
 
@@ -60,7 +61,7 @@ adr/                             … Architecture Decision Record
 1. [Discord Developer Portal](https://discord.com/developers/applications) で新規アプリケーションを作成
 2. 「Bot」タブでBotを追加し、トークンを発行（`.env` の `DISCORD_BOT_TOKEN` に設定）
 3. 「Bot」タブの **Privileged Gateway Intents** で以下を有効化
-   - `MESSAGE CONTENT INTENT`（キーワード検知・俳句/短歌判定・`@Rakuro`表記によるコマンド解釈に必須）
+   - `MESSAGE CONTENT INTENT`（キーワード検知・俳句/短歌判定に必須）
 4. 「OAuth2 > URL Generator」で `bot` スコープと以下の権限を選択し、生成されたURLからサーバーへ招待
    - `Send Messages`, `Read Message History`, `View Channels`
 
