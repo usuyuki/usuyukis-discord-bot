@@ -76,9 +76,26 @@ cp .env.example .env
 
 ### 3. 起動
 
+`compose.yml` の `bot` サービスは `image`（GHCRのビルド済みイメージ）と `build`（ローカルDockerfile）の両方を指定している。用途に応じて起動方法を使い分ける。
+
+**本番運用（GHCRのビルド済みイメージを使う）**
+
+`main` ブランチへのpush時にCIが `ghcr.io/usuyuki/usuyukis-discord-bot` へマルチアーキテクチャ（`linux/amd64`/`linux/arm64`）イメージを自動publishしている（詳細は [adr/0006_ci_build_pipeline.md](./adr/0006_ci_build_pipeline.md)）。ローカルビルドせずこのイメージをpullして使う。
+
+```
+docker compose pull bot
+docker compose up -d
+```
+
+イメージタグは `.env` の `BOT_IMAGE_TAG`（未設定時は `latest`）で切り替えられる。
+
+**開発（ローカルのソースからビルドする）**
+
 ```
 docker compose up -d --build
 ```
+
+`--build` を付けるとローカルの `Dockerfile` からビルドしたイメージで起動する（`BOT_IMAGE_TAG` で指定したタグに上書きされるため、以後 `docker compose up -d`（`--build`なし）だけだとローカルビルド版が使われ続ける点に注意。GHCR版に戻す場合は `docker compose pull bot` を再実行する）。
 
 初回起動時に `migrations/` のマイグレーションが自動適用される。
 

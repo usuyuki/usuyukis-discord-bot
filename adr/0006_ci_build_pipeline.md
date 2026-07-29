@@ -40,5 +40,5 @@ umi.mikanの `dependabot.yml` に倣い、3つのpackage-ecosystemを月次(Asia
 ## 影響
 
 - PRを出すと `go test` / `go vet` / `gofmt` / golangci-lint が自動実行され、レビュー前に機械的な問題を検出できる
-- mainへのマージ後、GHCRに `ghcr.io/usuyuki/usuyukis-discord-bot:latest` 等のイメージが自動publishされる。本番運用でこのイメージをpullする構成に変更する場合は、別途デプロイ手順のドキュメント化・ADR化を検討すること
+- mainへのマージ後、GHCRに `ghcr.io/usuyuki/usuyukis-discord-bot:latest` 等のイメージが自動publishされる。本番運用でこのイメージをpullする構成は [0008](./0008_prod_uses_ghcr_image.md) で決定した
 - CIが `go.mod` の `tool` ディレクティブに追従するため、golangci-lintのバージョンアップは通常のGo依存更新（Dependabotの `gomod` グループ、または手動の `go get -tool`）で完結し、ワークフローYAMLの変更は不要

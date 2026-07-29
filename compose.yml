@@ -1,5 +1,6 @@
 services:
   bot:
+    image: ghcr.io/usuyuki/usuyukis-discord-bot:${BOT_IMAGE_TAG:-latest}
     build: .
     env_file: .env
     depends_on:
