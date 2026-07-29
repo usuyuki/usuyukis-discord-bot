@@ -30,7 +30,7 @@ jobs:
         with:
           driver-opts: |
             network=host
-            image=moby/buildkit:latest
+            image=moby/buildkit:v0.31.2
 
       - name: Extract metadata
         id: meta

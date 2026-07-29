@@ -11,6 +11,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v6
@@ -35,10 +37,7 @@ jobs:
         run: go mod download
 
       - name: Run tests
-        run: go test -v ./...
-
-      - name: Run tests with coverage
-        run: go test -coverprofile=coverage.out ./...
+        run: go test -v -coverprofile=coverage.out ./...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
