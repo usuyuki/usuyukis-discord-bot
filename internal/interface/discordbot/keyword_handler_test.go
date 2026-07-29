@@ -97,11 +97,6 @@ func TestKeywordHandler_HandleMessage_Command(t *testing.T) {
 			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, Content: "<@bot> keyword remove"},
 			wantSentSub: "使い方",
 		},
-		{
-			name:        "正常系: 構造化メンションでなくテキストの@Rakuro表記でもkeywordコマンドとして解釈される",
-			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false, IsAdmin: true, Content: "@Rakuro keyword add ぬるぽ ガッ"},
-			wantSentSub: "登録しました",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -176,11 +171,17 @@ func TestKeywordHandler_HandleMessage_AutoReply(t *testing.T) {
 			msg:        IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false, Content: "今日はいい天気"},
 			wantCalled: false,
 		},
+		{
+			name:       "正常系: @Rakuroはコマンド起動用の予約語ではなく、通常のキーワードとして自動応答にマッチする",
+			msg:        IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false, Content: "@Rakuro 今何時？"},
+			wantCalled: true,
+			wantReply:  "呼んだ？",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := newFakeKeywordRepository()
-			repo.items["g1"] = map[string][]string{"ぬるぽ": {"ガッ"}}
+			repo.items["g1"] = map[string][]string{"ぬるぽ": {"ガッ"}, "@Rakuro": {"呼んだ？"}}
 			uc := keywordUC.New(repo)
 			sender := &fakeMessageSender{}
 			h := NewKeywordHandler(uc, sender)
@@ -286,13 +287,8 @@ func TestParseKeywordCommand(t *testing.T) {
 			want:    nil,
 		},
 		{
-			name:    "正常系: @Rakuroに句読点が付いていてもメンショントークンとして除去して解析できる",
+			name:    "異常系: @Rakuroはメンショントークンとして除去されず、keyword以外の先頭語としてnilを返す",
 			content: "@Rakuro, keyword add ぬるぽ ガッ",
-			want:    &keywordCommand{Sub: "add", Word: "ぬるぽ", Response: "ガッ"},
-		},
-		{
-			name:    "異常系: @Rakuroが別の単語に連結している場合は除去せず、keyword以外の先頭語としてnilを返す",
-			content: "@Rakuroski keyword add ぬるぽ ガッ",
 			want:    nil,
 		},
 		{
