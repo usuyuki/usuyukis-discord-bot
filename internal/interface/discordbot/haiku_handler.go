@@ -17,9 +17,8 @@ func NewHaikuHandler(uc *haikuUC.UseCase) *HaikuHandler {
 	return &HaikuHandler{uc: uc}
 }
 
-// HandleMessage はBotへの構造化メンション（MentionsBotID）でない通常メッセージを
-// 俳句・短歌判定にかける。
-// 通知先が未登録の場合は投稿元チャンネルへfallbackする
+// HandleMessage はBotへの構造化メンションでない通常メッセージを俳句・短歌判定にかける。
+// 判定結果は他チャンネルに漏らさず、常に投稿元チャンネルへ通知する
 func (h *HaikuHandler) HandleMessage(ctx context.Context, msg IncomingMessage) error {
 	if msg.MentionsBotID {
 		return nil

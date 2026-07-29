@@ -153,6 +153,42 @@ func TestKeywordHandler_HandleMessage_Command_MultipleResponses(t *testing.T) {
 	}
 }
 
+func TestKeywordHandler_HandleMessage_UsageMessage_EmbedsBotIDDynamically(t *testing.T) {
+	repo := newFakeKeywordRepository()
+	uc := keywordUC.New(repo)
+	sender := &fakeMessageSender{}
+	h := NewKeywordHandler(uc, sender)
+
+	msg := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, BotID: "999", IsAdmin: true, Content: "<@999> keyword add"}
+	if err := h.HandleMessage(context.Background(), msg); err != nil {
+		t.Fatalf("HandleMessage() unexpected error = %v", err)
+	}
+	want := "<@999>"
+	if !strings.Contains(sender.sentContent, want) {
+		t.Errorf("HandleMessage() content = %q, want to contain %q (使い方メッセージのメンション表記はmsg.BotIDから動的に組み立てられるべき)", sender.sentContent, want)
+	}
+}
+
+func TestKeywordHandler_HandleMessage_NoBotMention_FallsBackToAutoReply(t *testing.T) {
+	repo := newFakeKeywordRepository()
+	uc := keywordUC.New(repo)
+	sender := &fakeMessageSender{}
+	h := NewKeywordHandler(uc, sender)
+
+	// 構造化メンションを含まない発言は、たとえ"keyword add"という文字列を含んでいても
+	// コマンドとして解釈されず、キーワード自動応答としてのマッチのみ試みられる（未登録なので無応答）
+	msg := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: false, BotID: "bot", IsAdmin: true, Content: "keyword add ぬるぽ ガッ"}
+	if err := h.HandleMessage(context.Background(), msg); err != nil {
+		t.Fatalf("HandleMessage() unexpected error = %v", err)
+	}
+	if sender.called {
+		t.Errorf("HandleMessage() sent a reply %q, want no reply", sender.sentContent)
+	}
+	if len(repo.items["g1"]["ぬるぽ"]) != 0 {
+		t.Errorf("keyword addがコマンドとして誤って処理されている: repo.items[g1][ぬるぽ] = %v", repo.items["g1"]["ぬるぽ"])
+	}
+}
+
 func TestKeywordHandler_HandleMessage_AutoReply(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -287,8 +323,8 @@ func TestParseKeywordCommand(t *testing.T) {
 			want:    nil,
 		},
 		{
-			name:    "異常系: @Rakuroはメンショントークンとして除去されず、keyword以外の先頭語としてnilを返す",
-			content: "@Rakuro, keyword add ぬるぽ ガッ",
+			name:    "異常系: テキストの@メンション風表記は構造化メンションでないため除去されず、keyword以外の先頭語としてnilを返す",
+			content: "@bot keyword add ぬるぽ ガッ",
 			want:    nil,
 		},
 		{

@@ -2,6 +2,8 @@ package discordbot
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
 )
@@ -21,6 +23,27 @@ type IncomingMessage struct {
 	MentionsBotID bool   // Botへのメンションが含まれるか
 	BotID         string // BotのユーザーID
 	IsAdmin       bool   // 発言者がこのギルドで管理者権限を持つか
+}
+
+// mentionTag はbotIDから使い方案内文言に埋め込むDiscordの構造化メンション表記
+// （"<@123456>"）を組み立てる。Bot名を固定文字列でハードコードすると環境（サーバー上の
+// 表示名やBotアカウント自体）が変わった際に文言が実態とずれるため、実行時のBotIDから動的に組み立てる
+func mentionTag(botID string) string {
+	return fmt.Sprintf("<@%s>", botID)
+}
+
+// stripMentionTokens はスペース区切りのフィールド列から、構造化メンション
+// （<@123456>等）を除去したフィールド列を返す。
+// keyword/helpなど、メンションに続くコマンド本体を解析する各ハンドラで共通して使う
+func stripMentionTokens(fields []string) []string {
+	filtered := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if strings.HasPrefix(f, "<@") && strings.HasSuffix(f, ">") {
+			continue
+		}
+		filtered = append(filtered, f)
+	}
+	return filtered
 }
 
 // IncomingEmojiUpdate はdiscordgoのGuildEmojisUpdateイベントを薄くラップした型

@@ -17,7 +17,7 @@ var (
 )
 
 // nowPlaceholder は応答文言中に含まれていると現在日時に展開されるプレースホルダー。
-// 打刻Bot（`@Rakuro`固定の時刻返信）を廃止し、この記法を使ったキーワード自動応答に統一する
+// 打刻Bot（固定の時刻返信専用Bot）を廃止し、この記法を使ったキーワード自動応答に統一する
 const nowPlaceholder = "{$now}"
 
 // nowLayout はnowPlaceholder展開時の日時表示フォーマット

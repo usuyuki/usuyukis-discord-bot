@@ -6,8 +6,6 @@ import "errors"
 type Purpose string
 
 const (
-	// PurposeHaiku は俳句検知通知の用途
-	PurposeHaiku Purpose = "haiku"
 	// PurposeEmoji は絵文字追加通知の用途
 	PurposeEmoji Purpose = "emoji"
 )
@@ -15,7 +13,7 @@ const (
 // IsValid はPurposeが定義済みの値かどうかを判定する
 func (p Purpose) IsValid() bool {
 	switch p {
-	case PurposeHaiku, PurposeEmoji:
+	case PurposeEmoji:
 		return true
 	default:
 		return false

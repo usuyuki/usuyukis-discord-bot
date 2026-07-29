@@ -13,13 +13,45 @@ import (
 // AdminPermissionChecker はギルドメンバーが管理者権限を持つかどうかを判定する関数
 type AdminPermissionChecker func(s *discordgo.Session, guildID, userID string) (bool, error)
 
-// DefaultAdminPermissionChecker はdiscordgoのMember権限からAdministrator権限の有無を判定する
+// DefaultAdminPermissionChecker はGuildのOwnerIDおよびMemberのロールから
+// Administrator権限の有無を判定する。
+// discordgo.Session.UserChannelPermissionsはチャンネル単位の実効権限を計算する
+// ものでchannelIDを要求するため、guildIDを渡すと対象チャンネルが解決できずエラーになる。
+// このチェックはチャンネルに依存しないギルド全体の管理者権限を見たいので、
+// Guild/Member情報から直接権限ビットを集約する
 func DefaultAdminPermissionChecker(s *discordgo.Session, guildID, userID string) (bool, error) {
-	perms, err := s.State.UserChannelPermissions(userID, guildID)
+	guild, err := s.State.Guild(guildID)
 	if err != nil {
-		perms, err = s.UserChannelPermissions(userID, guildID)
+		guild, err = s.Guild(guildID)
 		if err != nil {
 			return false, err
+		}
+	}
+	if guild.OwnerID == userID {
+		return true, nil
+	}
+
+	member, err := s.State.Member(guildID, userID)
+	if err != nil {
+		member, err = s.GuildMember(guildID, userID)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	var perms int64
+	for _, role := range guild.Roles {
+		if role.ID == guild.ID {
+			perms |= role.Permissions
+			break
+		}
+	}
+	for _, roleID := range member.Roles {
+		for _, role := range guild.Roles {
+			if role.ID == roleID {
+				perms |= role.Permissions
+				break
+			}
 		}
 	}
 	return perms&discordgo.PermissionAdministrator != 0, nil

@@ -79,6 +79,7 @@ func run() error {
 	}
 	router.RegisterMessageHandler(discordbot.NewKeywordHandler(keywordUseCase, messageSender))
 	router.RegisterMessageHandler(discordbot.NewHaikuHandler(haikuUseCase))
+	router.RegisterMessageHandler(discordbot.NewHelpHandler(messageSender))
 	router.RegisterEmojiUpdateHandler(discordbot.NewEmojiHandler(emojiUseCase))
 
 	discordInfra.RegisterEventBridge(session, router, discordInfra.DefaultAdminPermissionChecker)
