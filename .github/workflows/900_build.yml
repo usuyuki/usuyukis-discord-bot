@@ -62,3 +62,23 @@ jobs:
             type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
           provenance: false
           sbom: false
+
+  notify:
+    name: Send Notification
+    runs-on: ubuntu-latest
+    needs: [build-bot]
+    if: always()
+    steps:
+      - name: Send Discord notification
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.NOTIFY_DISCORD_WEBHOOK }}
+          title: "🐳 Docker Build Notification"
+          description: |
+            **Branch**: ${{ github.ref_name }}
+            **Author**: ${{ github.actor }}
+            **Status**: ${{ (needs.build-bot.result == 'success') && '✅ Docker image built successfully!' || '❌ Docker build failed' }}
+          color: ${{ (needs.build-bot.result == 'success') && '3066993' || '15158332' }}
+          url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          username: "GitHub Actions"
+          avatar_url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"

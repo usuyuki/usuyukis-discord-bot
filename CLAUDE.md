@@ -60,7 +60,7 @@ Bot機能を1つ追加する際は以下の順序で実装する（詳細は [ad
 `.github/workflows/` にGitHub Actions定義がある（設計判断は [adr/0006_ci_build_pipeline.md](./adr/0006_ci_build_pipeline.md) 参照）。
 
 - `100_test.yml` / `101_lint.yml`: PRごとに `go test` / `go vet` / `gofmt` / golangci-lintを実行する。golangci-lintは `golangci-lint-action` ではなく `go tool golangci-lint run` を使う（`go.mod` の `tool` ディレクティブで管理しているバージョンとCIのバージョンを一致させるため）。**ローカルの `make lint` が通るのにCIだけ落ちる場合、まずはこのコマンドの差異ではなくローカルの `go.sum`/tool バージョンがコミット済みのものと一致しているか疑うこと。**
-- `900_build.yml`: mainブランチへのpush時に `linux/amd64,linux/arm64` のマルチアーキテクチャDockerイメージをビルドし `ghcr.io/usuyuki/usuyukis-discord-bot` へpushする。
+- `900_build.yml`: mainブランチへのpush時に `linux/amd64,linux/arm64` のマルチアーキテクチャDockerイメージをビルドし `ghcr.io/usuyuki/usuyukis-discord-bot` へpushする。ビルド結果は `secrets.NOTIFY_DISCORD_WEBHOOK` 宛にDiscord通知される。マルチアーキビルドは `Dockerfile` 側のクロスコンパイル方式（QEMUエミュレーション回避、詳細は [adr/0009_docker_build_cross_compile.md](./adr/0009_docker_build_cross_compile.md)）で高速化している。
 - `internal/infrastructure/postgres` に実DBを使うテストを追加した場合は、`100_test.yml` にPostgreSQLサービスコンテナを追加すること（現状はテストファイルがなくDB不要のため未設定）。
 
 ## コメント方針
