@@ -2,6 +2,7 @@
 <h1>{{.GuildName}}</h1>
 
 <h2>キーワード自動応答</h2>
+<p>応答に <code>{$now}</code> と入れると、マッチ時の現在日時（JST）に置き換えて返信します。</p>
 <table>
   <tr><th>キーワード</th><th>応答（複数ある場合はランダムに1つ選ばれます）</th><th></th></tr>
   {{range .Keywords}}

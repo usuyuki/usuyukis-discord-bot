@@ -52,7 +52,7 @@ func (u *UseCase) List(ctx context.Context, guildID string) ([]keyword.Keyword, 
 }
 
 // Match はメッセージ本文に一致する登録済みキーワードを1件返す。一致がなければokがfalseになる。
-// 呼び出し側はKeyword.RandomResponse()で応答候補からランダムに1つを選ぶ
+// 呼び出し側はKeyword.RandomResponse(now)で応答候補からランダムに1つを選び、{$now}等のプレースホルダーを展開する
 func (u *UseCase) Match(ctx context.Context, guildID, messageBody string) (keyword.Keyword, bool, error) {
 	keywords, err := u.repo.FindByGuild(ctx, guildID)
 	if err != nil {

@@ -4,21 +4,25 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/keyword"
 	keywordUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/keyword"
 )
 
 // KeywordHandler はキーワード登録コマンド（@Bot keyword add/remove/list）と
-// 通常メッセージへの自動応答を担うハンドラ
+// 通常メッセージへの自動応答を担うハンドラ。
+// 応答文言に含まれる{$now}プレースホルダーはnowが返す現在時刻に展開される（打刻Bot廃止後、
+// 時刻を含む応答もこのキーワード自動応答経由で登録する運用に統一している）
 type KeywordHandler struct {
 	uc     *keywordUC.UseCase
 	sender MessageSender
+	now    func() time.Time
 }
 
 // NewKeywordHandler はKeywordHandlerを生成する
 func NewKeywordHandler(uc *keywordUC.UseCase, sender MessageSender) *KeywordHandler {
-	return &KeywordHandler{uc: uc, sender: sender}
+	return &KeywordHandler{uc: uc, sender: sender, now: time.Now}
 }
 
 // HandleMessage はBotへのメンション（構造化メンション・テキストの@Rakuro表記いずれも含む）
@@ -88,7 +92,7 @@ func (h *KeywordHandler) handleAutoReply(ctx context.Context, msg IncomingMessag
 	if !ok {
 		return nil
 	}
-	return h.sender.SendMessage(ctx, msg.ChannelID, k.RandomResponse())
+	return h.sender.SendMessage(ctx, msg.ChannelID, k.RandomResponse(h.now()))
 }
 
 // keywordCommand はパース済みのkeywordコマンド引数
