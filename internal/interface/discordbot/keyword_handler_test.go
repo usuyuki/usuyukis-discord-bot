@@ -78,23 +78,23 @@ func TestKeywordHandler_HandleMessage_Command(t *testing.T) {
 	}{
 		{
 			name:        "正常系: 管理者がaddコマンドを実行すると登録され、登録完了メッセージが返る",
-			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, Content: "<@bot> keyword add ぬるぽ ガッ"},
+			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, BotID: "bot", Content: "<@bot> keyword add ぬるぽ ガッ"},
 			wantSentSub: "登録しました",
 		},
 		{
 			name:        "異常系: 管理者でない場合はaddコマンドが拒否される",
-			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: false, Content: "<@bot> keyword add ぬるぽ ガッ"},
+			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: false, BotID: "bot", Content: "<@bot> keyword add ぬるぽ ガッ"},
 			wantSentSub: "管理者権限が必要です",
 		},
 		{
 			name:        "正常系: listコマンドで登録済みキーワードが一覧表示される",
-			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: false, Content: "<@bot> keyword list"},
+			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: false, BotID: "bot", Content: "<@bot> keyword list"},
 			preRegister: true,
 			wantSentSub: "ぬるぽ",
 		},
 		{
 			name:        "異常系: removeコマンドで単語未指定なら使い方を案内する",
-			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, Content: "<@bot> keyword remove"},
+			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, BotID: "bot", Content: "<@bot> keyword remove"},
 			wantSentSub: "使い方",
 		},
 	}
@@ -128,11 +128,11 @@ func TestKeywordHandler_HandleMessage_Command_MultipleResponses(t *testing.T) {
 	h := NewKeywordHandler(uc, sender)
 	ctx := context.Background()
 
-	addMsg := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, Content: "<@bot> keyword add ぬるぽ ガッ"}
+	addMsg := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, BotID: "bot", Content: "<@bot> keyword add ぬるぽ ガッ"}
 	if err := h.HandleMessage(ctx, addMsg); err != nil {
 		t.Fatalf("HandleMessage() unexpected error = %v", err)
 	}
-	addMsg2 := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, Content: "<@bot> keyword add ぬるぽ ｶﾞｯ"}
+	addMsg2 := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, BotID: "bot", Content: "<@bot> keyword add ぬるぽ ｶﾞｯ"}
 	if err := h.HandleMessage(ctx, addMsg2); err != nil {
 		t.Fatalf("HandleMessage() unexpected error = %v", err)
 	}
@@ -141,7 +141,7 @@ func TestKeywordHandler_HandleMessage_Command_MultipleResponses(t *testing.T) {
 		t.Fatalf("同じキーワードへの複数回addは応答を積み増すはずが、%v件しか登録されていない", len(repo.items["g1"]["ぬるぽ"]))
 	}
 
-	removeMsg := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, Content: "<@bot> keyword remove ぬるぽ ガッ"}
+	removeMsg := IncomingMessage{GuildID: "g1", ChannelID: "c1", MentionsBotID: true, IsAdmin: true, BotID: "bot", Content: "<@bot> keyword remove ぬるぽ ガッ"}
 	if err := h.HandleMessage(ctx, removeMsg); err != nil {
 		t.Fatalf("HandleMessage() unexpected error = %v", err)
 	}
@@ -288,8 +288,8 @@ func TestParseKeywordCommand(t *testing.T) {
 			want:    &keywordCommand{Sub: "add", Word: "ぬるぽ", Response: "ガッ"},
 		},
 		{
-			name:    "正常系: 複数メンションが含まれていてもすべて除去して解析できる",
-			content: "<@bot> <@&role1> keyword add ぬるぽ ガッ",
+			name:    "正常系: Botメンションが先頭以外にもあればすべて除去して解析できる",
+			content: "<@bot> keyword <@bot> add ぬるぽ ガッ",
 			want:    &keywordCommand{Sub: "add", Word: "ぬるぽ", Response: "ガッ"},
 		},
 		{
@@ -332,10 +332,15 @@ func TestParseKeywordCommand(t *testing.T) {
 			content: "<@bot> keyword remove ぬるぽ ガッ",
 			want:    &keywordCommand{Sub: "remove", Word: "ぬるぽ", Response: "ガッ"},
 		},
+		{
+			name:    "正常系: Botメンションと同じ形式でもBotID以外のメンション風文字列はキーワード引数として保持される",
+			content: "<@bot> keyword add <@notanid> ガッ",
+			want:    &keywordCommand{Sub: "add", Word: "<@notanid>", Response: "ガッ"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseKeywordCommand(tt.content)
+			got := parseKeywordCommand(tt.content, "bot")
 			if (got == nil) != (tt.want == nil) {
 				t.Fatalf("parseKeywordCommand(%q) = %+v, want %+v", tt.content, got, tt.want)
 			}

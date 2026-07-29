@@ -3,7 +3,6 @@ package discordbot
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
 )
@@ -32,13 +31,16 @@ func mentionTag(botID string) string {
 	return fmt.Sprintf("<@%s>", botID)
 }
 
-// stripMentionTokens はスペース区切りのフィールド列から、構造化メンション
-// （<@123456>等）を除去したフィールド列を返す。
+// stripMentionTokens はスペース区切りのフィールド列から、指定したbotIDの構造化メンション
+// （"<@botID>"）にちょうど一致するフィールドのみを除去したフィールド列を返す。
+// "<@...>"の形を持つ全フィールドを対象にすると、キーワードの値として渡された
+// リテラルな"<@notanid>"のような引数まで誤って除去してしまうため、実際のBotメンションのみに絞る。
 // keyword/helpなど、メンションに続くコマンド本体を解析する各ハンドラで共通して使う
-func stripMentionTokens(fields []string) []string {
+func stripMentionTokens(fields []string, botID string) []string {
+	tag := mentionTag(botID)
 	filtered := make([]string, 0, len(fields))
 	for _, f := range fields {
-		if strings.HasPrefix(f, "<@") && strings.HasSuffix(f, ">") {
+		if f == tag {
 			continue
 		}
 		filtered = append(filtered, f)
