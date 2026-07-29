@@ -128,7 +128,7 @@ golangci-lintは `go.mod` の `tool` ディレクティブで管理している�
 | `000_labeler.yml` | PR作成/更新時 | 変更ファイルに応じてPRへ自動でラベルを付与する |
 | `100_test.yml` | PR作成/更新時（`*.go`, `go.mod`, `go.sum` 変更時） | `go test -v ./...` とカバレッジ計測、Codecovへのアップロード |
 | `101_lint.yml` | PR作成/更新時（`*.go`, `go.mod`, `go.sum`, `.golangci.yml` 変更時） | `go vet`、`gofmt` の整形チェック、`go tool golangci-lint run` |
-| `900_build.yml` | mainブランチへのpush時 | `linux/amd64`/`linux/arm64` のマルチアーキテクチャDockerイメージをビルドし `ghcr.io/usuyuki/usuyukis-discord-bot` へpushする |
+| `900_build.yml` | mainブランチへのpush時 | `linux/amd64`/`linux/arm64` のマルチアーキテクチャDockerイメージをビルドし `ghcr.io/usuyuki/usuyukis-discord-bot` へpushする。結果を `NOTIFY_DISCORD_WEBHOOK` (GitHub Secrets) 宛にDiscord通知する |
 
 ### レイヤー依存方向の確認
 
