@@ -29,16 +29,16 @@ func TestDakokuHandler_HandleMessage(t *testing.T) {
 		wantContent string
 	}{
 		{
-			name:        "正常系: 本文に@Rakuroが含まれれば現在時刻を返信する",
+			name:        "正常系: 本文に@Rakuroが含まれれば現在時刻をJSTで返信する",
 			msg:         IncomingMessage{ChannelID: "c1", Content: "@Rakuro 今何時？"},
 			wantCalled:  true,
-			wantContent: "2026-07-28 14:32:10",
+			wantContent: "2026-07-28 23:32:10",
 		},
 		{
-			name:        "正常系: 本文に@rakuro（小文字）が含まれれば現在時刻を返信する",
+			name:        "正常系: 本文に@rakuro（小文字）が含まれれば現在時刻をJSTで返信する",
 			msg:         IncomingMessage{ChannelID: "c1", Content: "@rakuro 今何時？"},
 			wantCalled:  true,
-			wantContent: "2026-07-28 14:32:10",
+			wantContent: "2026-07-28 23:32:10",
 		},
 		{
 			name:       "異常系: Botへのメンションが一切含まれなければ何もしない",
