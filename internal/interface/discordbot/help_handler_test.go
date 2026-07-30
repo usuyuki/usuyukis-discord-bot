@@ -14,12 +14,12 @@ func TestHelpHandler_HandleMessage(t *testing.T) {
 	}{
 		{
 			name:       "正常系: 構造化メンションに続けてhelpと言うと機能一覧を返信する",
-			msg:        IncomingMessage{ChannelID: "c1", BotID: "bot", MentionsBotID: true, Content: "<@bot> help"},
+			msg:        IncomingMessage{ChannelID: "c1", BotID: "bot", BotName: "usuyuki", MentionsBotID: true, Content: "<@bot> help"},
 			wantCalled: true,
 		},
 		{
 			name:       "正常系: 構造化メンションに続けてusageと言うと機能一覧を返信する",
-			msg:        IncomingMessage{ChannelID: "c1", BotID: "bot", MentionsBotID: true, Content: "<@bot> usage"},
+			msg:        IncomingMessage{ChannelID: "c1", BotID: "bot", BotName: "usuyuki", MentionsBotID: true, Content: "<@bot> usage"},
 			wantCalled: true,
 		},
 		{
@@ -69,6 +69,9 @@ func TestHelpHandler_HandleMessage(t *testing.T) {
 				wantTag := mentionTag(tt.msg.BotID)
 				if !strings.Contains(sender.sentContent, wantTag) {
 					t.Errorf("HandleMessage() content = %q, want to contain dynamically built mention tag %q", sender.sentContent, wantTag)
+				}
+				if !strings.Contains(sender.sentContent, tt.msg.BotName) {
+					t.Errorf("HandleMessage() content = %q, want to contain bot name %q", sender.sentContent, tt.msg.BotName)
 				}
 			}
 		})
