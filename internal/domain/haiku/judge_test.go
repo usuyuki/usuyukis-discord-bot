@@ -94,6 +94,105 @@ func TestJudgeTanka(t *testing.T) {
 	}
 }
 
+func TestJudgeAny(t *testing.T) {
+	tests := []struct {
+		name  string
+		words []Word
+		want  bool
+	}{
+		{
+			name: "正常系: 575の単語境界を満たすwordsはtrue",
+			words: []Word{
+				{Surface: "古池", MoraCount: 3},
+				{Surface: "や", MoraCount: 2},
+				{Surface: "蛙", MoraCount: 3},
+				{Surface: "飛び込む", MoraCount: 4},
+				{Surface: "水の", MoraCount: 3},
+				{Surface: "音", MoraCount: 2},
+			},
+			want: true,
+		},
+		{
+			name: "正常系: 57577の単語境界を満たすwordsはtrue",
+			words: []Word{
+				{MoraCount: 5},
+				{MoraCount: 7},
+				{MoraCount: 5},
+				{MoraCount: 7},
+				{MoraCount: 7},
+			},
+			want: true,
+		},
+		{
+			name: "異常系: 575にも57577にも一致しないwordsはfalse",
+			words: []Word{
+				{MoraCount: 6},
+				{MoraCount: 6},
+				{MoraCount: 5},
+			},
+			want: false,
+		},
+		{
+			name:  "異常系: 空のwordsはfalse",
+			words: []Word{},
+			want:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := JudgeAny(tt.words); got != tt.want {
+				t.Errorf("JudgeAny(%v) = %v, want %v", tt.words, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPossibleTotal(t *testing.T) {
+	tests := []struct {
+		name  string
+		words []Word
+		want  bool
+	}{
+		{
+			name:  "正常系: 合計17拍（川柳の下限）はtrue",
+			words: []Word{{MoraCount: 5}, {MoraCount: 7}, {MoraCount: 5}},
+			want:  true,
+		},
+		{
+			name:  "正常系: 合計31拍（短歌）はtrue",
+			words: []Word{{MoraCount: 5}, {MoraCount: 7}, {MoraCount: 5}, {MoraCount: 7}, {MoraCount: 7}},
+			want:  true,
+		},
+		{
+			name:  "正常系: 合計50拍（上限）はtrue",
+			words: []Word{{MoraCount: 50}},
+			want:  true,
+		},
+		{
+			name:  "異常系: 合計16拍（川柳の下限未満）はfalse",
+			words: []Word{{MoraCount: 16}},
+			want:  false,
+		},
+		{
+			name:  "異常系: 合計51拍（上限超過）はfalse",
+			words: []Word{{MoraCount: 51}},
+			want:  false,
+		},
+		{
+			name:  "異常系: 空のwordsは合計0拍でfalse",
+			words: []Word{},
+			want:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := PossibleTotal(tt.words); got != tt.want {
+				t.Errorf("PossibleTotal(%v) = %v, want %v", tt.words, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSplit(t *testing.T) {
 	tests := []struct {
 		name    string

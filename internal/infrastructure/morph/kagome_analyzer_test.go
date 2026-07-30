@@ -27,6 +27,16 @@ func TestKagomeAnalyzer_AnalyzeWords(t *testing.T) {
 			text:      "今日はいい天気ですね",
 			wantJudge: false,
 		},
+		{
+			name:      "正常系: UniDicでは一昨と日に分割され575にならないがIPA辞書では一昨日が1語になり575と判定される",
+			text:      "落ちたもの一昨日食べて忘れよう",
+			wantJudge: true,
+		},
+		{
+			name:      "正常系: UniDicでは最上と川に分割され575にならないがIPA辞書では最上川が1語になり575と判定される",
+			text:      "最上川眺め夕焼け染まる空",
+			wantJudge: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

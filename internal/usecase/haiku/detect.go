@@ -27,9 +27,14 @@ func New(analyzer MorphAnalyzer, sender MessageSender) *UseCase {
 func (u *UseCase) Detect(ctx context.Context, guildID, channelID, messageBody string) (bool, error) {
 	isDebug := false
 	trimmed := strings.TrimSpace(messageBody)
-	if strings.HasSuffix(trimmed, "--debug") {
+	// iPhoneでは「--」が入力しにくいため、「-debug」でも起動できるようにする
+	switch {
+	case strings.HasSuffix(trimmed, "--debug"):
 		isDebug = true
 		messageBody = strings.TrimSpace(strings.TrimSuffix(trimmed, "--debug"))
+	case strings.HasSuffix(trimmed, "-debug"):
+		isDebug = true
+		messageBody = strings.TrimSpace(strings.TrimSuffix(trimmed, "-debug"))
 	}
 
 	cleanBody := ignorePattern.ReplaceAllString(messageBody, "")

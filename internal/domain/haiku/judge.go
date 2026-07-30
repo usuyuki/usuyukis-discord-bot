@@ -21,6 +21,43 @@ func JudgeTanka(moraCountsByWord []int) bool {
 	return matchesPattern(moraCountsByWord, TankaPattern)
 }
 
+// JudgeAny はwordsが川柳（5-7-5）・短歌（5-7-5-7-7）のいずれかの判定に成功するかを返す
+func JudgeAny(words []Word) bool {
+	counts := moraCounts(words)
+	return matchesPattern(counts, HaikuPattern) || matchesPattern(counts, TankaPattern)
+}
+
+// minPossibleTotalMorae/maxPossibleTotalMorae はJudgeAnyが真になり得る合計モーラ数の範囲。
+// 下限は川柳の定型（5+7+5=17拍）、上限は短歌の定型（5+7+5+7+7=31拍）に安全マージンを
+// 持たせた値。辞書（UniDic/IPA）ごとに複合語の読み仮名の割り当てが異なるため、同一テキスト
+// でも辞書間で合計モーラ数が完全に一致するとは限らない。そのため上限には単語単位の
+// 読みの揺れを吸収できる余裕を持たせている
+const (
+	minPossibleTotalMorae = 17
+	maxPossibleTotalMorae = 50
+)
+
+// PossibleTotal はwordsの合計モーラ数がJudgeAnyで真になり得る範囲
+// （[minPossibleTotalMorae, maxPossibleTotalMorae]）に収まっているかを返す。
+// この範囲外であれば、辞書を変えて再解析してもJudgeAnyが真になることはまずないと
+// みなせるため、呼び出し側は再解析を省略してよい
+func PossibleTotal(words []Word) bool {
+	total := 0
+	for _, w := range words {
+		total += w.MoraCount
+	}
+	return total >= minPossibleTotalMorae && total <= maxPossibleTotalMorae
+}
+
+// moraCounts はwordsから形態素ごとのモーラ数の列を取り出す
+func moraCounts(words []Word) []int {
+	counts := make([]int, len(words))
+	for i, w := range words {
+		counts[i] = w.MoraCount
+	}
+	return counts
+}
+
 // matchesPattern はmoraCountsByWordの合計がpatternの合計拍数と一致し、
 // かつpatternの各句切れ位置（累積拍数）がすべて形態素境界と一致するかを判定する
 func matchesPattern(moraCountsByWord []int, pattern []int) bool {
@@ -65,11 +102,7 @@ func cumulativeBoundaries(moraCountsByWord []int) map[int]bool {
 // 連結した文字列のスライスを返す。wordsの形態素境界がpatternの句切れ位置と
 // 一致しない場合はok=falseを返す
 func Split(words []Word, pattern []int) (result []string, ok bool) {
-	moraCounts := make([]int, len(words))
-	for i, w := range words {
-		moraCounts[i] = w.MoraCount
-	}
-	if !matchesPattern(moraCounts, pattern) {
+	if !matchesPattern(moraCounts(words), pattern) {
 		return nil, false
 	}
 

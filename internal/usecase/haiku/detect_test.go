@@ -113,6 +113,15 @@ func TestUseCase_Detect(t *testing.T) {
 			wantSentChannelID: "test-channel",
 			wantContent:       "川柳・短歌として検知できませんでした。\n\n【デバッグ: 字余り・字足らず判定】\n川柳判定❌: 期待:5,7,5　結果:2,6,3\n短歌判定❌: 期待:5,7,5,7,7　結果:0,0,0,0,11\n\n【デバッグ: 使用形態素解析器】\nfake-analyzer\n\n【デバッグ: 形態素解析結果】\n```text\n今日\t\t\t(2拍)\nはいい\t\t\t(3拍)\n天気\t\t\t(3拍)\nですね\t\t\t(3拍)\n```",
 		},
+		{
+			name:              "正常系: -debug（ハイフン1つ）をつけてもデバッグ情報が出力される（iPhoneで--が入力しにくいため）",
+			words:             haikuWords,
+			channelID:         "test-channel",
+			messageBody:       "古池や 蛙飛び込む 水の音 -debug",
+			wantDetected:      true,
+			wantSentChannelID: "test-channel",
+			wantContent:       "川柳を検知しました:\n「古池や　蛙飛び込む　水の音」\n\n【デバッグ: 使用形態素解析器】\nfake-analyzer\n\n【デバッグ: 形態素解析結果】\n```text\n古池\t\t\t(3拍)\nや\t\t\t(2拍)\n蛙\t\t\t(3拍)\n飛び込む\t\t\t(4拍)\n水の\t\t\t(3拍)\n音\t\t\t(2拍)\n```",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

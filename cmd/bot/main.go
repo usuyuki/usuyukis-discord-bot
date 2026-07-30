@@ -69,11 +69,12 @@ func run() error {
 	guildCache := discordInfra.NewGuildCache(session)
 	emojiSource := discordInfra.NewEmojiSource(session)
 
-	keywordUseCase := keywordUC.New(keywordRepo)
+	randomizer := discordInfra.NewRandomizer()
+	keywordUseCase := keywordUC.New(keywordRepo, randomizer)
 	notifyChannelUseCase := notifychannelUC.New(notifyChannelRepo)
 	haikuUseCase := haikuUC.New(analyzer, messageSender)
 	emojiUseCase := emojiUC.New(notifyChannelRepo, messageSender)
-	slotUseCase := slotUC.New(emojiSource, discordInfra.NewRandomizer())
+	slotUseCase := slotUC.New(emojiSource, randomizer)
 
 	router := discordbot.NewRouter()
 	if cfg.DevMode {
