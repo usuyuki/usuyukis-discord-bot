@@ -82,8 +82,10 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		}
 
 		botID := ""
+		botName := ""
 		if s.State.User != nil {
 			botID = s.State.User.ID
+			botName = s.State.User.Username
 		}
 
 		router.DispatchMessage(context.Background(), discordbot.IncomingMessage{
@@ -93,6 +95,7 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 			Content:       m.Content,
 			MentionsBotID: mentionsBot,
 			BotID:         botID,
+			BotName:       botName,
 			IsAdmin:       isAdmin,
 		})
 	})

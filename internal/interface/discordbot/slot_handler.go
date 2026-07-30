@@ -8,8 +8,11 @@ import (
 	slotUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/slot"
 )
 
-// SlotHandler は「@Bot slot」コマンドを受け、ギルドのカスタム絵文字（少なければ標準絵文字）から
-// 3つ抽選してスロットを回すハンドラ
+// slotTriggerPhrase はメンションなしでスロットを起動する固定トリガー文言
+const slotTriggerPhrase = "うすゆきスロット"
+
+// SlotHandler は「うすゆきスロット」という発言（メンション不要）を受け、ギルドのカスタム絵文字
+// （少なければ標準絵文字）から3つ抽選してスロットを回すハンドラ
 type SlotHandler struct {
 	uc     *slotUC.UseCase
 	sender MessageSender
@@ -20,13 +23,10 @@ func NewSlotHandler(uc *slotUC.UseCase, sender MessageSender) *SlotHandler {
 	return &SlotHandler{uc: uc, sender: sender}
 }
 
-// HandleMessage はBotへの構造化メンションで「slot」に一致すればスロットを回して結果を返信する
+// HandleMessage は本文がちょうど"うすゆきスロット"（前後の空白は無視）に一致すればスロットを回して結果を返信する。
+// メンションは不要
 func (h *SlotHandler) HandleMessage(ctx context.Context, msg IncomingMessage) error {
-	if !msg.MentionsBotID {
-		return nil
-	}
-	filtered := stripMentionTokens(strings.Fields(msg.Content), msg.BotID)
-	if len(filtered) != 1 || strings.ToLower(filtered[0]) != "slot" {
+	if strings.TrimSpace(msg.Content) != slotTriggerPhrase {
 		return nil
 	}
 

@@ -27,30 +27,30 @@ func TestSlotHandler_HandleMessage(t *testing.T) {
 		wantContent string
 	}{
 		{
-			name:        "正常系: @Bot slot で3つ揃えば大当たりを通知する",
-			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "<@bot123> slot", MentionsBotID: true, BotID: "bot123"},
+			name:        "正常系: メンションなしで「うすゆきスロット」と言うと3つ揃って大当たりを通知する",
+			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "うすゆきスロット", MentionsBotID: false},
 			wantSent:    true,
 			wantContent: "<:a:1> | <:a:1> | <:a:1>\n🎉 大当たり！",
 		},
 		{
-			name:     "異常系: Botへのメンションでなければ反応しない",
-			msg:      IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "slot", MentionsBotID: false, BotID: "bot123"},
-			wantSent: false,
-		},
-		{
-			name:     "異常系: slot以外のコマンドには反応しない",
-			msg:      IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "<@bot123> keyword", MentionsBotID: true, BotID: "bot123"},
-			wantSent: false,
-		},
-		{
-			name:        "正常系: 大文字小文字を無視してSLOTに反応する",
-			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "<@bot123> SLOT", MentionsBotID: true, BotID: "bot123"},
+			name:        "正常系: 前後に空白があっても反応する",
+			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "  うすゆきスロット  ", MentionsBotID: false},
 			wantSent:    true,
 			wantContent: "<:a:1> | <:a:1> | <:a:1>\n🎉 大当たり！",
 		},
 		{
-			name:     "異常系: slotの後に余分なトークンがあると反応しない",
-			msg:      IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "<@bot123> slot foo", MentionsBotID: true, BotID: "bot123"},
+			name:     "異常系: トリガー文言以外には反応しない",
+			msg:      IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "keyword", MentionsBotID: false},
+			wantSent: false,
+		},
+		{
+			name:     "異常系: トリガー文言に余分な文字が付くと反応しない",
+			msg:      IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "うすゆきスロットお願い", MentionsBotID: false},
+			wantSent: false,
+		},
+		{
+			name:     "異常系: Botへのメンションを伴ってもトリガー文言でなければ反応しない",
+			msg:      IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "<@bot123> slot", MentionsBotID: true, BotID: "bot123"},
 			wantSent: false,
 		},
 	}

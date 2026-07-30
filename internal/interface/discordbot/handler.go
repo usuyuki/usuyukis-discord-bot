@@ -21,6 +21,7 @@ type IncomingMessage struct {
 	Content       string
 	MentionsBotID bool   // Botへのメンションが含まれるか
 	BotID         string // BotのユーザーID
+	BotName       string // Botの表示名（ヘルプ文言などの案内表示に使う）
 	IsAdmin       bool   // 発言者がこのギルドで管理者権限を持つか
 }
 
