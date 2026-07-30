@@ -1,11 +1,6 @@
 // Package slot はスロット（絵文字3つ抽選）の結果と役判定を表す純粋な値オブジェクトを提供する
 package slot
 
-import "errors"
-
-// ErrInvalidReelCount はリール（抽選された絵文字）が3つちょうどでないときに返るエラー
-var ErrInvalidReelCount = errors.New("slot: reels must have exactly 3 items")
-
 // Rank はスロットの役
 type Rank int
 
@@ -25,13 +20,8 @@ type Result struct {
 }
 
 // NewResult は3つの絵文字表示文字列（Tag等）からResultを生成し、役を自動判定する
-func NewResult(reels []string) (Result, error) {
-	if len(reels) != 3 {
-		return Result{}, ErrInvalidReelCount
-	}
-	var arr [3]string
-	copy(arr[:], reels)
-	return Result{reels: arr, rank: judge(arr)}, nil
+func NewResult(reels [3]string) Result {
+	return Result{reels: reels, rank: judge(reels)}
 }
 
 // judge は3つの絵文字表示文字列から役を判定する

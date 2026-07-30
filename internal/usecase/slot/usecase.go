@@ -16,13 +16,12 @@ var fallbackEmojis = []string{"🍒", "🍋", "🔔", "💎", "7️⃣", "🍇",
 // UseCase はスロット抽選に関するアプリケーションロジック
 type UseCase struct {
 	emojiSource EmojiSource
-	// intn はrandomな整数を1つ生成する関数。テスト容易性のため注入可能にしている
-	intn func(n int) int
+	randomizer  Randomizer
 }
 
 // New はUseCaseを生成する
-func New(emojiSource EmojiSource, intn func(n int) int) *UseCase {
-	return &UseCase{emojiSource: emojiSource, intn: intn}
+func New(emojiSource EmojiSource, randomizer Randomizer) *UseCase {
+	return &UseCase{emojiSource: emojiSource, randomizer: randomizer}
 }
 
 // Spin はギルドのカスタム絵文字（reelCount個未満ならfallbackEmojis）からreelCount個を
@@ -36,9 +35,9 @@ func (u *UseCase) Spin(ctx context.Context, guildID string) (slot.Result, error)
 		source = fallbackEmojis
 	}
 
-	reels := make([]string, reelCount)
+	var reels [reelCount]string
 	for i := range reels {
-		reels[i] = source[u.intn(len(source))]
+		reels[i] = source[u.randomizer.Intn(len(source))]
 	}
-	return slot.NewResult(reels)
+	return slot.NewResult(reels), nil
 }

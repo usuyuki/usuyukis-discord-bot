@@ -118,14 +118,19 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		mu.Lock()
 		prev := previousEmojis[e.GuildID]
 		current := make(map[string]bool, len(e.Emojis))
-		var added []emoji.Emoji
 		for _, em := range e.Emojis {
 			current[em.ID] = true
-			if prev != nil && !prev[em.ID] {
-				if de, err := emoji.New(em.Name, em.ID, em.Animated); err == nil {
-					added = append(added, de)
+		}
+
+		var added []emoji.Emoji
+		if prev != nil {
+			var newEmojis []*discordgo.Emoji
+			for _, em := range e.Emojis {
+				if !prev[em.ID] {
+					newEmojis = append(newEmojis, em)
 				}
 			}
+			added = convertEmojis(newEmojis)
 		}
 		previousEmojis[e.GuildID] = current
 		mu.Unlock()

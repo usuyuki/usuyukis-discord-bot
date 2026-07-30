@@ -7,3 +7,9 @@ import "context"
 type EmojiSource interface {
 	ListEmojiTags(ctx context.Context, guildID string) ([]string, error)
 }
+
+// Randomizer はスロットの抽選に使う乱数を提供するport
+type Randomizer interface {
+	// Intn は[0, n)の範囲の乱数を1つ返す
+	Intn(n int) int
+}

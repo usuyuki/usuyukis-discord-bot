@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -74,7 +73,7 @@ func run() error {
 	notifyChannelUseCase := notifychannelUC.New(notifyChannelRepo)
 	haikuUseCase := haikuUC.New(analyzer, messageSender)
 	emojiUseCase := emojiUC.New(notifyChannelRepo, messageSender)
-	slotUseCase := slotUC.New(emojiSource, rand.Intn)
+	slotUseCase := slotUC.New(emojiSource, discordInfra.NewRandomizer())
 
 	router := discordbot.NewRouter()
 	if cfg.DevMode {

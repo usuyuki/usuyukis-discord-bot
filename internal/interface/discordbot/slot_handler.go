@@ -26,7 +26,7 @@ func (h *SlotHandler) HandleMessage(ctx context.Context, msg IncomingMessage) er
 		return nil
 	}
 	filtered := stripMentionTokens(strings.Fields(msg.Content), msg.BotID)
-	if len(filtered) == 0 || filtered[0] != "slot" {
+	if len(filtered) != 1 || strings.ToLower(filtered[0]) != "slot" {
 		return nil
 	}
 

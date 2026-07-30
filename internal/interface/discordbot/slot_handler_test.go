@@ -15,6 +15,10 @@ func (f *fakeSlotEmojiSource) ListEmojiTags(ctx context.Context, guildID string)
 	return f.tags, nil
 }
 
+type zeroRandomizer struct{}
+
+func (zeroRandomizer) Intn(n int) int { return 0 }
+
 func TestSlotHandler_HandleMessage(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -38,11 +42,22 @@ func TestSlotHandler_HandleMessage(t *testing.T) {
 			msg:      IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "<@bot123> keyword", MentionsBotID: true, BotID: "bot123"},
 			wantSent: false,
 		},
+		{
+			name:        "正常系: 大文字小文字を無視してSLOTに反応する",
+			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "<@bot123> SLOT", MentionsBotID: true, BotID: "bot123"},
+			wantSent:    true,
+			wantContent: "<:a:1> | <:a:1> | <:a:1>\n🎉 大当たり！",
+		},
+		{
+			name:     "異常系: slotの後に余分なトークンがあると反応しない",
+			msg:      IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "<@bot123> slot foo", MentionsBotID: true, BotID: "bot123"},
+			wantSent: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &fakeMessageSender{}
-			uc := slotUC.New(&fakeSlotEmojiSource{tags: []string{"<:a:1>", "<:b:2>", "<:c:3>"}}, func(n int) int { return 0 })
+			uc := slotUC.New(&fakeSlotEmojiSource{tags: []string{"<:a:1>", "<:b:2>", "<:c:3>"}}, zeroRandomizer{})
 			h := NewSlotHandler(uc, sender)
 
 			if err := h.HandleMessage(context.Background(), tt.msg); err != nil {

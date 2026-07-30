@@ -17,15 +17,17 @@ func (f *fakeEmojiSource) ListEmojiTags(ctx context.Context, guildID string) ([]
 	return f.tags, f.err
 }
 
-// sequentialIntn はあらかじめ用意したindexesを呼び出し順に返すテスト用乱数関数。
+// fakeRandomizer はあらかじめ用意したindexesを呼び出し順に返すテスト用Randomizer。
 // 呼び出し回数がindexesの長さを超えたらパニックする
-func sequentialIntn(indexes []int) func(n int) int {
-	call := 0
-	return func(n int) int {
-		i := indexes[call]
-		call++
-		return i
-	}
+type fakeRandomizer struct {
+	indexes []int
+	call    int
+}
+
+func (f *fakeRandomizer) Intn(n int) int {
+	i := f.indexes[f.call]
+	f.call++
+	return i
 }
 
 func TestUseCase_Spin(t *testing.T) {
@@ -68,7 +70,7 @@ func TestUseCase_Spin(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			source := &fakeEmojiSource{tags: tt.tags, err: tt.sourceErr}
-			u := New(source, sequentialIntn(tt.indexes))
+			u := New(source, &fakeRandomizer{indexes: tt.indexes})
 
 			got, err := u.Spin(context.Background(), "g1")
 			if tt.wantErr {
