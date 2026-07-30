@@ -2,7 +2,6 @@ package keyword
 
 import (
 	"errors"
-	"math/rand/v2"
 	"strings"
 	"time"
 )
@@ -59,9 +58,9 @@ func (k Keyword) Matches(messageBody string) bool {
 	return strings.Contains(messageBody, k.Word)
 }
 
-// RandomResponse は登録済みの応答候補からランダムに1件選び、含まれるnowPlaceholder（{$now}）を
-// nowのJST日時文字列に展開して返す
-func (k Keyword) RandomResponse(now time.Time) string {
-	response := k.Responses[rand.IntN(len(k.Responses))]
-	return strings.ReplaceAll(response, nowPlaceholder, now.In(jst).Format(nowLayout))
+// ResponseAt はResponses[i]に含まれるnowPlaceholder（{$now}）をnowのJST日時文字列に展開して返す。
+// 応答候補からどれを選ぶか（乱数選択）は呼び出し側（usecase層）の責務とし、
+// domain層は選択済みのインデックスを受け取るだけに留める
+func (k Keyword) ResponseAt(i int, now time.Time) string {
+	return strings.ReplaceAll(k.Responses[i], nowPlaceholder, now.In(jst).Format(nowLayout))
 }

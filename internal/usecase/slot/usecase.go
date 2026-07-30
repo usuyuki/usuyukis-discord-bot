@@ -25,14 +25,19 @@ func New(emojiSource EmojiSource, randomizer Randomizer) *UseCase {
 }
 
 // Spin はギルドのカスタム絵文字（reelCount個未満ならfallbackEmojis）からreelCount個を
-// 独立にランダム抽選し、役判定込みのResultを返す
+// 独立にランダム抽選し、役判定込みのResultを返す。
+// guildIDが空文字（DM等ギルドに属さないメッセージ）の場合はカスタム絵文字を取得できないため、
+// EmojiSourceを呼ばずfallbackEmojisを使う
 func (u *UseCase) Spin(ctx context.Context, guildID string) (slot.Result, error) {
-	source, err := u.emojiSource.ListEmojiTags(ctx, guildID)
-	if err != nil {
-		return slot.Result{}, err
-	}
-	if len(source) < reelCount {
-		source = fallbackEmojis
+	source := fallbackEmojis
+	if guildID != "" {
+		tags, err := u.emojiSource.ListEmojiTags(ctx, guildID)
+		if err != nil {
+			return slot.Result{}, err
+		}
+		if len(tags) >= reelCount {
+			source = tags
+		}
 	}
 
 	var reels [reelCount]string

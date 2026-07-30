@@ -3,6 +3,7 @@ package morph
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/ikawaha/kagome-dict/ipa"
 	"github.com/ikawaha/kagome-dict/uni"
@@ -18,29 +19,30 @@ import (
 // のような辞書に登録済みの複合語・固有名詞であっても最短コスト法で分割されてしまい、
 // 5-7-5の句切れと単語境界が一致せず判定に失敗することがある。IPA辞書は逆に複合語・固有名詞を
 // まとまりとして持つ傾向が強いため、UniDicで川柳・短歌いずれの判定も失敗した場合のみ
-// IPA辞書でも解析し直し、そちらで判定が成功すればそちらの結果を採用するフォールバックを行う
+// IPA辞書でも解析し直し、そちらで判定が成功すればそちらの結果を採用するフォールバックを行う。
+// IPA辞書は実際にフォールバックが発生するまで使われないため、起動時ロードコストを避けるべく
+// 初回利用時に遅延ロードする
 type KagomeAnalyzer struct {
 	primaryName  string
 	primary      *tokenizer.Tokenizer
 	fallbackName string
-	fallback     *tokenizer.Tokenizer
+	loadFallback func() (*tokenizer.Tokenizer, error)
 }
 
-// NewKagomeAnalyzer はUniDic辞書（第一候補）とIPA辞書（フォールバック）を読み込んだKagomeAnalyzerを生成する
+// NewKagomeAnalyzer はUniDic辞書（第一候補）を読み込んだKagomeAnalyzerを生成する。
+// IPA辞書（フォールバック）はここではロードせず、初回フォールバック発生時に遅延ロードする
 func NewKagomeAnalyzer() (*KagomeAnalyzer, error) {
 	primary, err := tokenizer.New(uni.Dict(), tokenizer.OmitBosEos())
 	if err != nil {
 		return nil, fmt.Errorf("morph: failed to create tokenizer (UniDic): %w", err)
 	}
-	fallback, err := tokenizer.New(ipa.Dict(), tokenizer.OmitBosEos())
-	if err != nil {
-		return nil, fmt.Errorf("morph: failed to create tokenizer (IPA): %w", err)
-	}
 	return &KagomeAnalyzer{
 		primaryName:  "kagome v2 / UniDic辞書",
 		primary:      primary,
 		fallbackName: "kagome v2 / IPA辞書",
-		fallback:     fallback,
+		loadFallback: sync.OnceValues(func() (*tokenizer.Tokenizer, error) {
+			return tokenizer.New(ipa.Dict(), tokenizer.OmitBosEos())
+		}),
 	}, nil
 }
 
@@ -49,23 +51,23 @@ func NewKagomeAnalyzer() (*KagomeAnalyzer, error) {
 // IPA辞書での解析結果も試し、そちらで判定が成功すればそちらを返す
 func (a *KagomeAnalyzer) AnalyzeWords(text string) ([]haiku.Word, error) {
 	words := tokenizeWords(a.primary, text)
-	if judgesAny(words) {
+	if haiku.JudgeAny(words) {
+		return words, nil
+	}
+	// 合計モーラ数が川柳・短歌の定型から大きく外れている場合、辞書を変えて
+	// 再解析してもJudgeAnyが真になることはまずないため、IPA辞書での再解析を省略する
+	if !haiku.PossibleTotal(words) {
 		return words, nil
 	}
 
-	if fbWords := tokenizeWords(a.fallback, text); judgesAny(fbWords) {
+	fallback, err := a.loadFallback()
+	if err != nil {
+		return nil, fmt.Errorf("morph: failed to create tokenizer (IPA): %w", err)
+	}
+	if fbWords := tokenizeWords(fallback, text); haiku.JudgeAny(fbWords) {
 		return fbWords, nil
 	}
 	return words, nil
-}
-
-// judgesAny はwordsが川柳（5-7-5）・短歌（5-7-5-7-7）のいずれかの判定に成功するかを返す
-func judgesAny(words []haiku.Word) bool {
-	counts := make([]int, len(words))
-	for i, w := range words {
-		counts[i] = w.MoraCount
-	}
-	return haiku.Judge(counts) || haiku.JudgeTanka(counts)
 }
 
 // tokenizeWords はtをtextに対して実行し、形態素ごとの表層形とモーラ数を返す。

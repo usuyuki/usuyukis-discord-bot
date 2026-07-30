@@ -2,18 +2,20 @@ package keyword
 
 import (
 	"context"
+	"time"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/keyword"
 )
 
 // UseCase はキーワード自動応答に関するアプリケーションロジックをまとめる
 type UseCase struct {
-	repo Repository
+	repo       Repository
+	randomizer Randomizer
 }
 
 // New はUseCaseを生成する
-func New(repo Repository) *UseCase {
-	return &UseCase{repo: repo}
+func New(repo Repository, randomizer Randomizer) *UseCase {
+	return &UseCase{repo: repo, randomizer: randomizer}
 }
 
 // Register はギルドのキーワードに応答文言を1件追加する。
@@ -51,17 +53,17 @@ func (u *UseCase) List(ctx context.Context, guildID string) ([]keyword.Keyword, 
 	return u.repo.FindByGuild(ctx, guildID)
 }
 
-// Match はメッセージ本文に一致する登録済みキーワードを1件返す。一致がなければokがfalseになる。
-// 呼び出し側はKeyword.RandomResponse(now)で応答候補からランダムに1つを選び、{$now}等のプレースホルダーを展開する
-func (u *UseCase) Match(ctx context.Context, guildID, messageBody string) (keyword.Keyword, bool, error) {
+// Match はメッセージ本文に一致する登録済みキーワードを探し、一致すれば応答候補からランダムに
+// 1つ選んで{$now}等のプレースホルダーを展開した応答文字列を返す。一致がなければokがfalseになる
+func (u *UseCase) Match(ctx context.Context, guildID, messageBody string, now time.Time) (response string, ok bool, err error) {
 	keywords, err := u.repo.FindByGuild(ctx, guildID)
 	if err != nil {
-		return keyword.Keyword{}, false, err
+		return "", false, err
 	}
 	for _, k := range keywords {
 		if k.Matches(messageBody) {
-			return k, true, nil
+			return k.ResponseAt(u.randomizer.Intn(len(k.Responses)), now), true, nil
 		}
 	}
-	return keyword.Keyword{}, false, nil
+	return "", false, nil
 }

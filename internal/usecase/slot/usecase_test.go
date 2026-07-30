@@ -33,6 +33,7 @@ func (f *fakeRandomizer) Intn(n int) int {
 func TestUseCase_Spin(t *testing.T) {
 	tests := []struct {
 		name      string
+		guildID   string
 		tags      []string
 		sourceErr error
 		indexes   []int
@@ -42,6 +43,7 @@ func TestUseCase_Spin(t *testing.T) {
 	}{
 		{
 			name:      "正常系: カスタム絵文字が3つ以上あればそこから抽選する",
+			guildID:   "g1",
 			tags:      []string{"<:a:1>", "<:b:2>", "<:c:3>"},
 			indexes:   []int{0, 0, 0},
 			wantReels: [3]string{"<:a:1>", "<:a:1>", "<:a:1>"},
@@ -49,6 +51,7 @@ func TestUseCase_Spin(t *testing.T) {
 		},
 		{
 			name:      "正常系: カスタム絵文字がreelCount未満ならfallbackEmojisから抽選する",
+			guildID:   "g1",
 			tags:      []string{"<:a:1>"},
 			indexes:   []int{0, 1, 2},
 			wantReels: [3]string{fallbackEmojis[0], fallbackEmojis[1], fallbackEmojis[2]},
@@ -56,13 +59,23 @@ func TestUseCase_Spin(t *testing.T) {
 		},
 		{
 			name:      "正常系: カスタム絵文字が0個でもfallbackEmojisから抽選する",
+			guildID:   "g1",
 			tags:      nil,
 			indexes:   []int{0, 0, 1},
 			wantReels: [3]string{fallbackEmojis[0], fallbackEmojis[0], fallbackEmojis[1]},
 			wantRank:  slot.RankSmall,
 		},
 		{
+			name:      "正常系: guildIDが空文字（DM）ならEmojiSourceを呼ばずfallbackEmojisから抽選する",
+			guildID:   "",
+			sourceErr: errors.New("boom"),
+			indexes:   []int{0, 0, 1},
+			wantReels: [3]string{fallbackEmojis[0], fallbackEmojis[0], fallbackEmojis[1]},
+			wantRank:  slot.RankSmall,
+		},
+		{
 			name:      "異常系: EmojiSourceがエラーを返すとSpinもエラーを返す",
+			guildID:   "g1",
 			sourceErr: errors.New("boom"),
 			wantErr:   true,
 		},
@@ -72,7 +85,7 @@ func TestUseCase_Spin(t *testing.T) {
 			source := &fakeEmojiSource{tags: tt.tags, err: tt.sourceErr}
 			u := New(source, &fakeRandomizer{indexes: tt.indexes})
 
-			got, err := u.Spin(context.Background(), "g1")
+			got, err := u.Spin(context.Background(), tt.guildID)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("Spin() expected error, got nil")

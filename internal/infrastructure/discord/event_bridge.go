@@ -101,8 +101,8 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 	})
 
 	// guildID -> emojiID set。プロセスローカルに前回状態を保持し、差分から追加された
-	// 絵文字のみ通知する。Bot参加ギルド数に比例してメモリを使用するが、通常運用の
-	// ギルド数では問題にならない規模と判断している
+	// 絵文字のみ通知する。Botがギルドから退出/キックされた際はGuildDeleteで該当エントリを
+	// 削除するため、参加中のギルド数に比例したメモリ使用量に収まる
 	var mu sync.Mutex
 	previousEmojis := map[string]map[string]bool{}
 
@@ -114,6 +114,19 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		}
 		mu.Lock()
 		previousEmojis[e.ID] = current
+		mu.Unlock()
+	})
+
+	// Botがギルドから退出/キックされた際、previousEmojisに残り続ける不要なエントリを削除する。
+	// Unavailable=trueの場合はDiscord側の障害によるギルド一時利用不可であり、Botは脱退して
+	// いないため削除しない（削除するとGuildEmojisUpdate再開時にprev==nilとなり、既存の
+	// 全絵文字が追加されたという誤通知を招く）
+	s.AddHandler(func(s *discordgo.Session, e *discordgo.GuildDelete) {
+		if e.Unavailable {
+			return
+		}
+		mu.Lock()
+		delete(previousEmojis, e.ID)
 		mu.Unlock()
 	})
 

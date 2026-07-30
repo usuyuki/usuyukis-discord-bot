@@ -2,6 +2,7 @@ package discordbot
 
 import (
 	"context"
+	"math/rand/v2"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,14 @@ import (
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/keyword"
 	keywordUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/keyword"
 )
+
+// fakeKeywordRandomizer はmath/rand/v2経由でRandomizer portを満たすテスト用実装。
+// 乱数選択が実際に複数の応答候補を行き来することを検証するテストで使う
+type fakeKeywordRandomizer struct{}
+
+func (fakeKeywordRandomizer) Intn(n int) int {
+	return rand.IntN(n)
+}
 
 // fakeKeywordRepository はテスト用のインメモリRepository実装。
 // guildID -> word -> responses の形で保持し、応答の積み増し・個別削除を再現する
@@ -104,7 +113,7 @@ func TestKeywordHandler_HandleMessage_Command(t *testing.T) {
 			if tt.preRegister {
 				repo.items["g1"] = map[string][]string{"ぬるぽ": {"ガッ"}}
 			}
-			uc := keywordUC.New(repo)
+			uc := keywordUC.New(repo, fakeKeywordRandomizer{})
 			sender := &fakeMessageSender{}
 			h := NewKeywordHandler(uc, sender)
 
@@ -123,7 +132,7 @@ func TestKeywordHandler_HandleMessage_Command(t *testing.T) {
 
 func TestKeywordHandler_HandleMessage_Command_MultipleResponses(t *testing.T) {
 	repo := newFakeKeywordRepository()
-	uc := keywordUC.New(repo)
+	uc := keywordUC.New(repo, fakeKeywordRandomizer{})
 	sender := &fakeMessageSender{}
 	h := NewKeywordHandler(uc, sender)
 	ctx := context.Background()
@@ -155,7 +164,7 @@ func TestKeywordHandler_HandleMessage_Command_MultipleResponses(t *testing.T) {
 
 func TestKeywordHandler_HandleMessage_UsageMessage_EmbedsBotIDDynamically(t *testing.T) {
 	repo := newFakeKeywordRepository()
-	uc := keywordUC.New(repo)
+	uc := keywordUC.New(repo, fakeKeywordRandomizer{})
 	sender := &fakeMessageSender{}
 	h := NewKeywordHandler(uc, sender)
 
@@ -171,7 +180,7 @@ func TestKeywordHandler_HandleMessage_UsageMessage_EmbedsBotIDDynamically(t *tes
 
 func TestKeywordHandler_HandleMessage_NoBotMention_FallsBackToAutoReply(t *testing.T) {
 	repo := newFakeKeywordRepository()
-	uc := keywordUC.New(repo)
+	uc := keywordUC.New(repo, fakeKeywordRandomizer{})
 	sender := &fakeMessageSender{}
 	h := NewKeywordHandler(uc, sender)
 
@@ -218,7 +227,7 @@ func TestKeywordHandler_HandleMessage_AutoReply(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := newFakeKeywordRepository()
 			repo.items["g1"] = map[string][]string{"ぬるぽ": {"ガッ"}, "@Rakuro": {"呼んだ？"}}
-			uc := keywordUC.New(repo)
+			uc := keywordUC.New(repo, fakeKeywordRandomizer{})
 			sender := &fakeMessageSender{}
 			h := NewKeywordHandler(uc, sender)
 
@@ -238,7 +247,7 @@ func TestKeywordHandler_HandleMessage_AutoReply(t *testing.T) {
 func TestKeywordHandler_HandleMessage_AutoReply_RandomlyPicksResponse(t *testing.T) {
 	repo := newFakeKeywordRepository()
 	repo.items["g1"] = map[string][]string{"ぬるぽ": {"ガッ", "ｶﾞｯ"}}
-	uc := keywordUC.New(repo)
+	uc := keywordUC.New(repo, fakeKeywordRandomizer{})
 	sender := &fakeMessageSender{}
 	h := NewKeywordHandler(uc, sender)
 
@@ -261,7 +270,7 @@ func TestKeywordHandler_HandleMessage_AutoReply_RandomlyPicksResponse(t *testing
 func TestKeywordHandler_HandleMessage_AutoReply_ExpandsNowPlaceholder(t *testing.T) {
 	repo := newFakeKeywordRepository()
 	repo.items["g1"] = map[string][]string{"今何時": {"今は{$now}だよ"}}
-	uc := keywordUC.New(repo)
+	uc := keywordUC.New(repo, fakeKeywordRandomizer{})
 	sender := &fakeMessageSender{}
 	h := NewKeywordHandler(uc, sender)
 	h.now = func() time.Time { return time.Date(2026, 7, 28, 14, 32, 10, 0, time.UTC) }

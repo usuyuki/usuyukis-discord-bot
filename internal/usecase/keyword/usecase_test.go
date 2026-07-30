@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/keyword"
 )
@@ -68,6 +69,21 @@ func (f *fakeRepository) FindByGuild(ctx context.Context, guildID string) ([]key
 	return result, nil
 }
 
+// fakeRandomizer はあらかじめ用意したindexesを呼び出し順に返すテスト用Randomizer
+type fakeRandomizer struct {
+	indexes []int
+	call    int
+}
+
+func (f *fakeRandomizer) Intn(n int) int {
+	if f.indexes == nil {
+		return 0
+	}
+	i := f.indexes[f.call]
+	f.call++
+	return i
+}
+
 type errorRepository struct{ err error }
 
 func (e *errorRepository) AddResponse(ctx context.Context, guildID, word, response string) error {
@@ -101,7 +117,7 @@ func TestUseCase_Register(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := newFakeRepository()
-			u := New(repo)
+			u := New(repo, &fakeRandomizer{})
 			err := u.Register(context.Background(), tt.guildID, tt.word, tt.response)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Register() error = %v, wantErr %v", err, tt.wantErr)
@@ -112,7 +128,7 @@ func TestUseCase_Register(t *testing.T) {
 
 func TestUseCase_Register_Accumulates(t *testing.T) {
 	repo := newFakeRepository()
-	u := New(repo)
+	u := New(repo, &fakeRandomizer{})
 	ctx := context.Background()
 
 	if err := u.Register(ctx, "g1", "ぬるぽ", "ガッ"); err != nil {
@@ -136,7 +152,7 @@ func TestUseCase_Register_Accumulates(t *testing.T) {
 
 func TestUseCase_RemoveResponse(t *testing.T) {
 	repo := newFakeRepository()
-	u := New(repo)
+	u := New(repo, &fakeRandomizer{})
 	ctx := context.Background()
 	if err := u.Register(ctx, "g1", "ぬるぽ", "ガッ"); err != nil {
 		t.Fatalf("Register() unexpected error = %v", err)
@@ -160,7 +176,7 @@ func TestUseCase_RemoveResponse(t *testing.T) {
 
 func TestUseCase_RemoveResponse_LastOneRemovesKeyword(t *testing.T) {
 	repo := newFakeRepository()
-	u := New(repo)
+	u := New(repo, &fakeRandomizer{})
 	ctx := context.Background()
 	if err := u.Register(ctx, "g1", "ぬるぽ", "ガッ"); err != nil {
 		t.Fatalf("Register() unexpected error = %v", err)
@@ -181,7 +197,7 @@ func TestUseCase_RemoveResponse_LastOneRemovesKeyword(t *testing.T) {
 
 func TestUseCase_RemoveKeyword(t *testing.T) {
 	repo := newFakeRepository()
-	u := New(repo)
+	u := New(repo, &fakeRandomizer{})
 	ctx := context.Background()
 	if err := u.Register(ctx, "g1", "ぬるぽ", "ガッ"); err != nil {
 		t.Fatalf("Register() unexpected error = %v", err)
@@ -217,7 +233,7 @@ func TestUseCase_SetResponses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := newFakeRepository()
-			u := New(repo)
+			u := New(repo, &fakeRandomizer{})
 			err := u.SetResponses(context.Background(), tt.guildID, tt.word, tt.responses)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("SetResponses() error = %v, wantErr %v", err, tt.wantErr)
@@ -237,6 +253,7 @@ func TestUseCase_SetResponses(t *testing.T) {
 }
 
 func TestUseCase_Match(t *testing.T) {
+	fixedNow := time.Date(2026, 7, 28, 14, 32, 10, 0, time.UTC)
 	tests := []struct {
 		name          string
 		registered    map[string][]string // word -> responses
@@ -244,16 +261,16 @@ func TestUseCase_Match(t *testing.T) {
 		guildID       string
 		messageBody   string
 		wantOK        bool
-		wantWord      string
+		wantResponse  string
 	}{
 		{
-			name:          "正常系: 登録済みキーワードが本文に含まれていれば一致する",
+			name:          "正常系: 登録済みキーワードが本文に含まれていれば一致し応答が返る",
 			registered:    map[string][]string{"ぬるぽ": {"ガッ"}},
 			registerGuild: "g1",
 			guildID:       "g1",
 			messageBody:   "さっきぬるぽ食らった",
 			wantOK:        true,
-			wantWord:      "ぬるぽ",
+			wantResponse:  "ガッ",
 		},
 		{
 			name:          "異常系: 一致するキーワードがなければokはfalse",
@@ -278,16 +295,16 @@ func TestUseCase_Match(t *testing.T) {
 			for word, responses := range tt.registered {
 				repo.items[tt.registerGuild] = map[string][]string{word: responses}
 			}
-			u := New(repo)
-			got, ok, err := u.Match(context.Background(), tt.guildID, tt.messageBody)
+			u := New(repo, &fakeRandomizer{})
+			got, ok, err := u.Match(context.Background(), tt.guildID, tt.messageBody, fixedNow)
 			if err != nil {
 				t.Fatalf("Match() unexpected error = %v", err)
 			}
 			if ok != tt.wantOK {
 				t.Fatalf("Match() ok = %v, want %v", ok, tt.wantOK)
 			}
-			if ok && got.Word != tt.wantWord {
-				t.Errorf("Match() word = %q, want %q", got.Word, tt.wantWord)
+			if ok && got != tt.wantResponse {
+				t.Errorf("Match() response = %q, want %q", got, tt.wantResponse)
 			}
 		})
 	}
@@ -295,25 +312,25 @@ func TestUseCase_Match(t *testing.T) {
 
 func TestUseCase_Match_RepositoryError(t *testing.T) {
 	wantErr := errors.New("db down")
-	u := New(&errorRepository{err: wantErr})
-	_, _, err := u.Match(context.Background(), "g1", "ぬるぽ")
+	u := New(&errorRepository{err: wantErr}, &fakeRandomizer{})
+	_, _, err := u.Match(context.Background(), "g1", "ぬるぽ", time.Now())
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Match() error = %v, want %v", err, wantErr)
 	}
 }
 
-func TestUseCase_Match_ReturnsKeywordWithAllResponses(t *testing.T) {
+func TestUseCase_Match_PicksResponseByRandomizer(t *testing.T) {
 	repo := newFakeRepository()
 	repo.items["g1"] = map[string][]string{"ぬるぽ": {"ガッ", "ｶﾞｯ"}}
-	u := New(repo)
-	got, ok, err := u.Match(context.Background(), "g1", "ぬるぽ")
+	u := New(repo, &fakeRandomizer{indexes: []int{1}})
+	got, ok, err := u.Match(context.Background(), "g1", "ぬるぽ", time.Now())
 	if err != nil {
 		t.Fatalf("Match() unexpected error = %v", err)
 	}
 	if !ok {
 		t.Fatal("Match() ok = false, want true")
 	}
-	if len(got.Responses) != 2 {
-		t.Fatalf("Match() Responses = %v, want 2 responses so caller can pick randomly", got.Responses)
+	if got != "ｶﾞｯ" {
+		t.Fatalf("Match() = %q, want %q (index 1 selected by randomizer)", got, "ｶﾞｯ")
 	}
 }

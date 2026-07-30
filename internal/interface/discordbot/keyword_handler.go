@@ -85,14 +85,14 @@ func (h *KeywordHandler) handleCommand(ctx context.Context, msg IncomingMessage)
 }
 
 func (h *KeywordHandler) handleAutoReply(ctx context.Context, msg IncomingMessage) error {
-	k, ok, err := h.uc.Match(ctx, msg.GuildID, msg.Content)
+	response, ok, err := h.uc.Match(ctx, msg.GuildID, msg.Content, h.now())
 	if err != nil {
 		return err
 	}
 	if !ok {
 		return nil
 	}
-	return h.sender.SendMessage(ctx, msg.ChannelID, k.RandomResponse(h.now()))
+	return h.sender.SendMessage(ctx, msg.ChannelID, response)
 }
 
 // keywordCommand はパース済みのkeywordコマンド引数

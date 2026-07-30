@@ -20,3 +20,9 @@ type Repository interface {
 	ReplaceResponses(ctx context.Context, guildID, word string, responses []string) error
 	FindByGuild(ctx context.Context, guildID string) ([]keyword.Keyword, error)
 }
+
+// Randomizer はマッチしたキーワードの応答候補からランダムに1件選ぶための乱数を提供するport
+type Randomizer interface {
+	// Intn は[0, n)の範囲の乱数を1つ返す
+	Intn(n int) int
+}

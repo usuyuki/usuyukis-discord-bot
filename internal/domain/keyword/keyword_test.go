@@ -54,43 +54,19 @@ func TestKeyword_Matches(t *testing.T) {
 	}
 }
 
-func TestKeyword_RandomResponse(t *testing.T) {
+func TestKeyword_ResponseAt(t *testing.T) {
 	fixedNow := time.Date(2026, 7, 28, 14, 32, 10, 0, time.UTC)
 
-	t.Run("正常系: 応答が1件のみなら常にその応答が返る", func(t *testing.T) {
-		k, err := New(1, "g1", "ぬるぽ", []string{"ガッ"})
-		if err != nil {
-			t.Fatalf("New() unexpected error = %v", err)
-		}
-		for range 10 {
-			if got := k.RandomResponse(fixedNow); got != "ガッ" {
-				t.Fatalf("RandomResponse() = %q, want %q", got, "ガッ")
-			}
-		}
-	})
-
-	t.Run("正常系: 複数応答のいずれかが返り、登録外の応答は返らない", func(t *testing.T) {
+	t.Run("正常系: 指定インデックスの応答が返る", func(t *testing.T) {
 		responses := []string{"ガッ", "ｶﾞｯ", "がっ"}
 		k, err := New(1, "g1", "ぬるぽ", responses)
 		if err != nil {
 			t.Fatalf("New() unexpected error = %v", err)
 		}
-		seen := map[string]bool{}
-		for range 100 {
-			got := k.RandomResponse(fixedNow)
-			found := false
-			for _, r := range responses {
-				if r == got {
-					found = true
-				}
+		for i, want := range responses {
+			if got := k.ResponseAt(i, fixedNow); got != want {
+				t.Fatalf("ResponseAt(%d) = %q, want %q", i, got, want)
 			}
-			if !found {
-				t.Fatalf("RandomResponse() = %q, want one of %v", got, responses)
-			}
-			seen[got] = true
-		}
-		if len(seen) < 2 {
-			t.Fatalf("RandomResponse() over 100 trials only produced %v, expected more variety", seen)
 		}
 	})
 
@@ -100,8 +76,8 @@ func TestKeyword_RandomResponse(t *testing.T) {
 			t.Fatalf("New() unexpected error = %v", err)
 		}
 		want := "今は2026-07-28 23:32:10だよ"
-		if got := k.RandomResponse(fixedNow); got != want {
-			t.Fatalf("RandomResponse() = %q, want %q", got, want)
+		if got := k.ResponseAt(0, fixedNow); got != want {
+			t.Fatalf("ResponseAt() = %q, want %q", got, want)
 		}
 	})
 
@@ -110,8 +86,8 @@ func TestKeyword_RandomResponse(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New() unexpected error = %v", err)
 		}
-		if got := k.RandomResponse(fixedNow); got != "ガッ" {
-			t.Fatalf("RandomResponse() = %q, want %q", got, "ガッ")
+		if got := k.ResponseAt(0, fixedNow); got != "ガッ" {
+			t.Fatalf("ResponseAt() = %q, want %q", got, "ガッ")
 		}
 	})
 }
