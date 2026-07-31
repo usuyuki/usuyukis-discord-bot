@@ -33,6 +33,48 @@ func (f *fakeSender) SendMessage(ctx context.Context, channelID, content string)
 	return nil
 }
 
+func TestIgnorePattern_ReplaceAllString(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "正常系: 半角スペース区切りの本文はスペースが除去される",
+			body: "古池や 蛙飛び込む 水の音",
+			want: "古池や蛙飛び込む水の音",
+		},
+		{
+			name: "正常系: 全角スペース区切りの本文は全角スペースが除去される",
+			body: "古池や　蛙飛び込む　水の音",
+			want: "古池や蛙飛び込む水の音",
+		},
+		{
+			name: "正常系: 全角・半角スペースが混在していてもすべて除去される",
+			body: "古池や　蛙飛び込む 水の音",
+			want: "古池や蛙飛び込む水の音",
+		},
+		{
+			name: "正常系: 句読点・記号もスペースとあわせて除去される",
+			body: "古池や、蛙飛び込む！水の音。",
+			want: "古池や蛙飛び込む水の音",
+		},
+		{
+			name: "正常系: 全角の疑問符・カギ括弧・中黒などの記号も除去される",
+			body: "「古池や」？蛙・飛び込む…水の音〜",
+			want: "古池や蛙飛び込む水の音",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ignorePattern.ReplaceAllString(tt.body, "")
+			if got != tt.want {
+				t.Errorf("ignorePattern.ReplaceAllString() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestUseCase_Detect(t *testing.T) {
 	haikuWords := []haiku.Word{
 		{Surface: "古池", MoraCount: 3},
