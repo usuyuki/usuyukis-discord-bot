@@ -9,7 +9,9 @@ import (
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/haiku"
 )
 
-var ignorePattern = regexp.MustCompile(`[\p{P}\p{S}\s]+`)
+// \s は半角スペース等のみが対象でU+3000（全角スペース）にマッチしないため、
+// Unicodeの空白カテゴリ\p{Z}を使い全角スペースも除去対象にする
+var ignorePattern = regexp.MustCompile(`[\p{P}\p{S}\p{Z}\s]+`)
 
 // UseCase は俳句（5-7-5）・短歌（5-7-5-7-7）投稿の検知・通知に関するアプリケーションロジック
 type UseCase struct {
