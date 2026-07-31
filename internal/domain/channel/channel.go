@@ -1,42 +1,36 @@
-// Package channel はユーザーからの依頼で作成するDiscordチャンネルの名前を表す
-// 値オブジェクトを提供する
+// Package channel はDiscordのチャンネル権限オーバーライドに関する純粋な判定ロジックを提供する
 package channel
 
-import (
-	"errors"
-	"strings"
+// Discordの権限ビット値。domain層は外部ライブラリに依存しないため、discordgoの定数を
+// 参照せずリテラルとして持つ（値そのものはDiscord API仕様として固定されている）
+const (
+	permViewChannel    int64 = 1 << 10
+	permManageChannels int64 = 1 << 4
+	permAdministrator  int64 = 1 << 3
 )
 
-var (
-	// ErrEmptyName はチャンネル名が空文字（前後の空白のみを含む場合を含む）の場合に返す
-	ErrEmptyName = errors.New("channel: name must not be empty")
-	// ErrNameTooLong はチャンネル名がDiscordの上限文字数を超える場合に返す
-	ErrNameTooLong = errors.New("channel: name must be 100 characters or fewer")
-)
-
-// maxNameLength はDiscordのチャンネル名に許される上限文字数
-const maxNameLength = 100
-
-// Name はDiscord上に作成するチャンネルの名前を表す値オブジェクト。
-// 大文字小文字の統一やスペースのハイフン変換はDiscord API側が作成時に自動で行うため、
-// ここでは空文字・上限文字数超過の拒否のみを行う
-type Name struct {
-	value string
+// Overwrite はチャンネルに設定されたロール単位の権限オーバーライドを表す薄い値
+type Overwrite struct {
+	RoleID string
+	Deny   int64
 }
 
-// NewName はrawを前後の空白を除いた上で検証し、Nameを生成する
-func NewName(raw string) (Name, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return Name{}, ErrEmptyName
+// IsPrivate はoverwritesの中に@everyoneロール（IDはguildIDと同一）へのViewChannel拒否が
+// 含まれていればtrueを返す。Discordの「プライベートチャンネル」はこの状態を指す
+func IsPrivate(guildID string, overwrites []Overwrite) bool {
+	for _, ow := range overwrites {
+		if ow.RoleID == guildID && ow.Deny&permViewChannel != 0 {
+			return true
+		}
 	}
-	if len([]rune(trimmed)) > maxNameLength {
-		return Name{}, ErrNameTooLong
-	}
-	return Name{value: trimmed}, nil
+	return false
 }
 
-// String は検証済みのチャンネル名文字列を返す
-func (n Name) String() string {
-	return n.value
+// IsChannelManagerRole はpermissionsがManageChannelsを持ちながらAdministratorは
+// 持たないロールかどうかを判定する。Administrator権限保持者はDiscordの仕様上チャンネル単位の
+// 権限オーバーライドを常にバイパスするため、明示的な閲覧拒否を設定しても操作できてしまい対象外となる。
+// この関数がtrueを返すロールは、明示的にオーバーライドで拒否しない限り一般ユーザーでも
+// 他人が作った非公開チャンネルへアクセスできてしまう対象を表す
+func IsChannelManagerRole(permissions int64) bool {
+	return permissions&permManageChannels != 0 && permissions&permAdministrator == 0
 }

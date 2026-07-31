@@ -3,76 +3,62 @@ package channel
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
-
-	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/channel"
 )
 
-// fakeCreator はテスト用のCreatorフェイク実装。CreatePrivateChannelに渡された引数を記録する
-type fakeCreator struct {
+// fakeRestrictor はテスト用のRestrictorフェイク実装。呼び出されたかと引数を記録する
+type fakeRestrictor struct {
+	called       bool
 	gotGuildID   string
-	gotName      string
+	gotChannelID string
 	gotCreatorID string
-	channelID    string
 	err          error
 }
 
-func (f *fakeCreator) CreatePrivateChannel(ctx context.Context, guildID, name, creatorUserID string) (string, error) {
+func (f *fakeRestrictor) RestrictToCreatorAndAdmins(ctx context.Context, guildID, channelID, creatorUserID string) error {
+	f.called = true
 	f.gotGuildID = guildID
-	f.gotName = name
+	f.gotChannelID = channelID
 	f.gotCreatorID = creatorUserID
-	return f.channelID, f.err
+	return f.err
 }
 
-func TestUseCase_Create(t *testing.T) {
-	t.Run("正常系: 有効な名前ならCreatorへ委譲し作成されたチャンネルIDを返す", func(t *testing.T) {
-		creator := &fakeCreator{channelID: "ch1"}
-		u := New(creator)
+func TestUseCase_ProtectIfPrivate(t *testing.T) {
+	t.Run("正常系: プライベートチャンネルならRestrictorへ委譲する", func(t *testing.T) {
+		restrictor := &fakeRestrictor{}
+		u := New(restrictor)
 
-		got, err := u.Create(context.Background(), "g1", "  雑談  ", "user1")
-		if err != nil {
-			t.Fatalf("Create() unexpected error = %v", err)
+		if err := u.ProtectIfPrivate(context.Background(), "g1", "ch1", "user1", true); err != nil {
+			t.Fatalf("ProtectIfPrivate() unexpected error = %v", err)
 		}
-		if got != "ch1" {
-			t.Errorf("Create() = %q, want %q", got, "ch1")
+		if !restrictor.called {
+			t.Fatal("ProtectIfPrivate() should call Restrictor when isPrivate is true")
 		}
-		if creator.gotGuildID != "g1" || creator.gotName != "雑談" || creator.gotCreatorID != "user1" {
-			t.Errorf("Creator received guildID=%q name=%q creatorID=%q, want g1/雑談/user1", creator.gotGuildID, creator.gotName, creator.gotCreatorID)
-		}
-	})
-
-	t.Run("異常系: 空白のみの名前だとCreatorを呼ばずErrEmptyNameになる", func(t *testing.T) {
-		creator := &fakeCreator{}
-		u := New(creator)
-
-		_, err := u.Create(context.Background(), "g1", "   ", "user1")
-		if !errors.Is(err, channel.ErrEmptyName) {
-			t.Fatalf("Create() error = %v, want %v", err, channel.ErrEmptyName)
-		}
-		if creator.gotGuildID != "" {
-			t.Errorf("Creator should not be called on validation error, but was called with guildID=%q", creator.gotGuildID)
+		if restrictor.gotGuildID != "g1" || restrictor.gotChannelID != "ch1" || restrictor.gotCreatorID != "user1" {
+			t.Errorf("Restrictor received guildID=%q channelID=%q creatorID=%q, want g1/ch1/user1", restrictor.gotGuildID, restrictor.gotChannelID, restrictor.gotCreatorID)
 		}
 	})
 
-	t.Run("異常系: 長すぎる名前だとCreatorを呼ばずErrNameTooLongになる", func(t *testing.T) {
-		creator := &fakeCreator{}
-		u := New(creator)
+	t.Run("異常系: プライベートでなければRestrictorを呼ばない", func(t *testing.T) {
+		restrictor := &fakeRestrictor{}
+		u := New(restrictor)
 
-		_, err := u.Create(context.Background(), "g1", strings.Repeat("a", 101), "user1")
-		if !errors.Is(err, channel.ErrNameTooLong) {
-			t.Fatalf("Create() error = %v, want %v", err, channel.ErrNameTooLong)
+		if err := u.ProtectIfPrivate(context.Background(), "g1", "ch1", "user1", false); err != nil {
+			t.Fatalf("ProtectIfPrivate() unexpected error = %v", err)
+		}
+		if restrictor.called {
+			t.Error("ProtectIfPrivate() should not call Restrictor when isPrivate is false")
 		}
 	})
 
-	t.Run("異常系: Creatorがエラーを返すとCreateもエラーを返す", func(t *testing.T) {
+	t.Run("異常系: Restrictorがエラーを返すとProtectIfPrivateもエラーを返す", func(t *testing.T) {
 		wantErr := errors.New("boom")
-		creator := &fakeCreator{err: wantErr}
-		u := New(creator)
+		restrictor := &fakeRestrictor{err: wantErr}
+		u := New(restrictor)
 
-		_, err := u.Create(context.Background(), "g1", "雑談", "user1")
+		err := u.ProtectIfPrivate(context.Background(), "g1", "ch1", "user1", true)
 		if !errors.Is(err, wantErr) {
-			t.Fatalf("Create() error = %v, want %v", err, wantErr)
+			t.Fatalf("ProtectIfPrivate() error = %v, want %v", err, wantErr)
 		}
 	})
 }

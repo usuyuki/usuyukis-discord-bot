@@ -55,6 +55,19 @@ type IncomingEmojiUpdate struct {
 	AddedEmojis []emoji.Emoji
 }
 
+// IncomingChannelCreate はdiscordgoのChannelCreateイベントを薄くラップした型。
+// IsPrivate/CreatorIDの解決（権限オーバーライドの解釈・監査ログ照会）はdiscordgo固有の
+// 処理のためinfrastructure/discord層が担い、ここには結果のみを渡す
+type IncomingChannelCreate struct {
+	GuildID   string
+	ChannelID string
+	// IsPrivate は@everyoneロールに対しチャンネル閲覧が拒否された非公開チャンネルとして
+	// 作成されたかどうか
+	IsPrivate bool
+	// CreatorID は監査ログから解決したチャンネル作成者のユーザーID。解決できなかった場合は空文字
+	CreatorID string
+}
+
 // MessageHandler はメッセージ受信時に処理を行うプラグインの契約。
 // 新しいメッセージ系Bot機能はこのインターフェースを実装しrouterへ登録するだけで有効化される
 type MessageHandler interface {
@@ -64,4 +77,9 @@ type MessageHandler interface {
 // EmojiUpdateHandler はギルド絵文字更新時に処理を行うプラグインの契約
 type EmojiUpdateHandler interface {
 	HandleEmojiUpdate(ctx context.Context, ev IncomingEmojiUpdate) error
+}
+
+// ChannelCreateHandler はギルドへの新規チャンネル作成時に処理を行うプラグインの契約
+type ChannelCreateHandler interface {
+	HandleChannelCreate(ctx context.Context, ev IncomingChannelCreate) error
 }

@@ -69,7 +69,7 @@ func run() error {
 	messageSender := discordInfra.NewMessageSender(session)
 	guildCache := discordInfra.NewGuildCache(session)
 	emojiSource := discordInfra.NewEmojiSource(session)
-	channelCreator := discordInfra.NewChannelCreator(session)
+	channelRestrictor := discordInfra.NewChannelRestrictor(session)
 
 	randomizer := discordInfra.NewRandomizer()
 	keywordUseCase := keywordUC.New(keywordRepo, randomizer)
@@ -77,7 +77,7 @@ func run() error {
 	haikuUseCase := haikuUC.New(analyzer, messageSender)
 	emojiUseCase := emojiUC.New(notifyChannelRepo, messageSender)
 	slotUseCase := slotUC.New(emojiSource, randomizer)
-	channelUseCase := channelUC.New(channelCreator)
+	channelUseCase := channelUC.New(channelRestrictor)
 
 	router := discordbot.NewRouter()
 	if cfg.DevMode {
@@ -88,8 +88,8 @@ func run() error {
 	router.RegisterMessageHandler(discordbot.NewHaikuHandler(haikuUseCase))
 	router.RegisterMessageHandler(discordbot.NewHelpHandler(messageSender))
 	router.RegisterMessageHandler(discordbot.NewSlotHandler(slotUseCase, messageSender))
-	router.RegisterMessageHandler(discordbot.NewChannelHandler(channelUseCase, messageSender))
 	router.RegisterEmojiUpdateHandler(discordbot.NewEmojiHandler(emojiUseCase))
+	router.RegisterChannelCreateHandler(discordbot.NewChannelHandler(channelUseCase))
 
 	discordInfra.RegisterEventBridge(session, router, discordInfra.DefaultAdminPermissionChecker)
 

@@ -8,8 +8,9 @@ import (
 // Router は登録された全ハンドラへイベントをブロードキャストする薄いディスパッチャ。
 // 新機能追加時はRegisterMessageHandler/RegisterEmojiUpdateHandlerで1行追加するだけでよい
 type Router struct {
-	messageHandlers     []MessageHandler
-	emojiUpdateHandlers []EmojiUpdateHandler
+	messageHandlers       []MessageHandler
+	emojiUpdateHandlers   []EmojiUpdateHandler
+	channelCreateHandlers []ChannelCreateHandler
 	// devChannelID が空でない場合、DispatchMessageはこのチャンネル以外の
 	// メッセージを全ハンドラへ配送しない（dev mode）
 	devChannelID string
@@ -34,6 +35,11 @@ func (r *Router) RegisterMessageHandler(h MessageHandler) {
 // RegisterEmojiUpdateHandler はEmojiUpdateHandlerを登録する
 func (r *Router) RegisterEmojiUpdateHandler(h EmojiUpdateHandler) {
 	r.emojiUpdateHandlers = append(r.emojiUpdateHandlers, h)
+}
+
+// RegisterChannelCreateHandler はChannelCreateHandlerを登録する
+func (r *Router) RegisterChannelCreateHandler(h ChannelCreateHandler) {
+	r.channelCreateHandlers = append(r.channelCreateHandlers, h)
 }
 
 // DispatchMessage は登録済み全MessageHandlerへメッセージイベントを配送する。
@@ -61,6 +67,20 @@ func (r *Router) DispatchEmojiUpdate(ctx context.Context, ev IncomingEmojiUpdate
 	for _, h := range r.emojiUpdateHandlers {
 		if err := h.HandleEmojiUpdate(ctx, ev); err != nil {
 			log.Printf("discordbot: emoji update handler error: %v", err)
+		}
+	}
+}
+
+// DispatchChannelCreate は登録済み全ChannelCreateHandlerへチャンネル作成イベントを配送する。
+// 絵文字更新と同様チャンネル作成もdevChannelIDとの比較に馴染まない性質のイベントのため、
+// dev modeが有効な間は「指定チャンネル以外への誤爆を防ぐ」という目的に合わせ配送自体を止める
+func (r *Router) DispatchChannelCreate(ctx context.Context, ev IncomingChannelCreate) {
+	if r.devChannelID != "" {
+		return
+	}
+	for _, h := range r.channelCreateHandlers {
+		if err := h.HandleChannelCreate(ctx, ev); err != nil {
+			log.Printf("discordbot: channel create handler error: %v", err)
 		}
 	}
 }

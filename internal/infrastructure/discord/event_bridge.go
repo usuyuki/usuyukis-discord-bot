@@ -6,6 +6,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/channel"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/interface/discordbot"
 )
@@ -100,6 +101,20 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		})
 	})
 
+	// 一般ユーザーにもManageChannelsを持つロールを付与しチャンネル作成を許可する運用を前提とし、
+	// 新規作成されたチャンネルが非公開であればチャンネル管理ロールのアクセスを剥奪する
+	s.AddHandler(func(s *discordgo.Session, e *discordgo.ChannelCreate) {
+		if e.GuildID == "" {
+			return
+		}
+		router.DispatchChannelCreate(context.Background(), discordbot.IncomingChannelCreate{
+			GuildID:   e.GuildID,
+			ChannelID: e.ID,
+			IsPrivate: channel.IsPrivate(e.GuildID, convertRoleOverwrites(e.PermissionOverwrites)),
+			CreatorID: resolveChannelCreator(s, e.GuildID, e.ID),
+		})
+	})
+
 	// guildID -> emojiID set。プロセスローカルに前回状態を保持し、差分から追加された
 	// 絵文字のみ通知する。Botがギルドから退出/キックされた際はGuildDeleteで該当エントリを
 	// 削除するため、参加中のギルド数に比例したメモリ使用量に収まる
@@ -163,4 +178,35 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 			AddedEmojis: added,
 		})
 	})
+}
+
+// convertRoleOverwrites はdiscordgoのPermissionOverwriteのうちロール単位のものだけを
+// domain層のchannel.Overwriteへ変換する。IsPrivate判定はロールへの拒否のみを見るため、
+// メンバー単位のオーバーライドは対象外とする
+func convertRoleOverwrites(overwrites []*discordgo.PermissionOverwrite) []channel.Overwrite {
+	result := make([]channel.Overwrite, 0, len(overwrites))
+	for _, ow := range overwrites {
+		if ow.Type != discordgo.PermissionOverwriteTypeRole {
+			continue
+		}
+		result = append(result, channel.Overwrite{RoleID: ow.ID, Deny: ow.Deny})
+	}
+	return result
+}
+
+// resolveChannelCreator は監査ログから直近のCHANNEL_CREATEエントリを検索し、
+// channelIDに一致するものがあれば作成者のユーザーIDを返す。監査ログの反映には若干の
+// タイムラグがあるほか、取得自体に失敗するケースもあり得るため、その場合は空文字を返す。
+// 作成者が解決できなくてもチャンネル管理ロールの剥奪自体は行われるため、安全側に倒れる
+func resolveChannelCreator(s *discordgo.Session, guildID, channelID string) string {
+	auditLog, err := s.GuildAuditLog(guildID, "", "", int(discordgo.AuditLogActionChannelCreate), 10)
+	if err != nil {
+		return ""
+	}
+	for _, entry := range auditLog.AuditLogEntries {
+		if entry.TargetID == channelID {
+			return entry.UserID
+		}
+	}
+	return ""
 }

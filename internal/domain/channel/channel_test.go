@@ -1,42 +1,86 @@
 package channel
 
-import (
-	"strings"
-	"testing"
+import "testing"
+
+const (
+	testPermViewChannel    int64 = 1 << 10
+	testPermManageChannels int64 = 1 << 4
+	testPermAdministrator  int64 = 1 << 3
 )
 
-func TestNewName(t *testing.T) {
+func TestIsPrivate(t *testing.T) {
 	tests := []struct {
-		name    string
-		raw     string
-		want    string
-		wantErr error
+		name       string
+		guildID    string
+		overwrites []Overwrite
+		want       bool
 	}{
-		{name: "正常系: 前後の空白を除いた文字列がそのままNameになる", raw: "  general-chat  ", want: "general-chat", wantErr: nil},
-		{name: "異常系: 空文字を入れるとErrEmptyNameになる", raw: "", wantErr: ErrEmptyName},
-		{name: "異常系: 空白のみを入れるとErrEmptyNameになる", raw: "   ", wantErr: ErrEmptyName},
-		{name: "異常系: 101文字を入れると上限を超えるのでErrNameTooLongになる", raw: strings.Repeat("a", 101), wantErr: ErrNameTooLong},
+		{
+			name:       "正常系: @everyoneロールへViewChannel拒否があればプライベート判定",
+			guildID:    "g1",
+			overwrites: []Overwrite{{RoleID: "g1", Deny: testPermViewChannel}},
+			want:       true,
+		},
+		{
+			name:       "正常系: @everyoneロールへの拒否がViewChannel以外のみなら非プライベート判定",
+			guildID:    "g1",
+			overwrites: []Overwrite{{RoleID: "g1", Deny: testPermManageChannels}},
+			want:       false,
+		},
+		{
+			name:       "異常系: @everyone以外のロールへのViewChannel拒否だけでは非プライベート判定",
+			guildID:    "g1",
+			overwrites: []Overwrite{{RoleID: "role0", Deny: testPermViewChannel}},
+			want:       false,
+		},
+		{
+			name:       "異常系: オーバーライドが空なら非プライベート判定",
+			guildID:    "g1",
+			overwrites: nil,
+			want:       false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewName(tt.raw)
-			if err != tt.wantErr {
-				t.Fatalf("NewName(%q) error = %v, want %v", tt.raw, err, tt.wantErr)
-			}
-			if tt.wantErr == nil && got.String() != tt.want {
-				t.Errorf("NewName(%q).String() = %q, want %q", tt.raw, got.String(), tt.want)
+			if got := IsPrivate(tt.guildID, tt.overwrites); got != tt.want {
+				t.Errorf("IsPrivate(%q, %v) = %v, want %v", tt.guildID, tt.overwrites, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestNewName_MaxLengthIsAllowed(t *testing.T) {
-	raw := strings.Repeat("a", 100)
-	got, err := NewName(raw)
-	if err != nil {
-		t.Fatalf("NewName() unexpected error = %v", err)
+func TestIsChannelManagerRole(t *testing.T) {
+	tests := []struct {
+		name        string
+		permissions int64
+		want        bool
+	}{
+		{
+			name:        "正常系: ManageChannelsのみ持つロールは対象になる",
+			permissions: testPermManageChannels,
+			want:        true,
+		},
+		{
+			name:        "異常系: ManageChannelsとAdministratorを両方持つロールはAdministratorが常にオーバーライドをバイパスするため対象外",
+			permissions: testPermManageChannels | testPermAdministrator,
+			want:        false,
+		},
+		{
+			name:        "異常系: ManageChannelsを持たないロールは対象外",
+			permissions: 0,
+			want:        false,
+		},
+		{
+			name:        "異常系: Administratorのみ持つロールは対象外",
+			permissions: testPermAdministrator,
+			want:        false,
+		},
 	}
-	if got.String() != raw {
-		t.Errorf("NewName().String() = %q, want %q", got.String(), raw)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsChannelManagerRole(tt.permissions); got != tt.want {
+				t.Errorf("IsChannelManagerRole(%d) = %v, want %v", tt.permissions, got, tt.want)
+			}
+		})
 	}
 }
