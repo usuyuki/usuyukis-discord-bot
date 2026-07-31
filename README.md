@@ -8,6 +8,7 @@
 | 俳句・短歌検知 | 形態素解析（[kagome](https://github.com/ikawaha/kagome)）で投稿の拍数を数え、5-7-5（俳句）または5-7-5-7-7（短歌）と判定できたら句読点区切りで**投稿元チャンネルへ**通知する（他チャンネルへは通知しない） |
 | 絵文字追加通知 | ギルドへ絵文字が追加されたことを検知して通知する |
 | スロット | メンション不要で「うすゆきスロット」と発言すると、ギルドのカスタム絵文字（3個未満の場合は標準絵文字セット）から3つを独立にランダム抽選する。3つ揃うと大当たり、2つ揃うと小当たり |
+| チャンネル作成 | `@Bot channel create <チャンネル名>` で公開チャンネルを作成する。`@Bot channel create-private <チャンネル名> [@メンバー ...]` でメンションしたメンバーと作成者だけが閲覧できるプライベートチャンネルを作成する。作成はBot自身の権限（Manage Channels）で行うため、コマンド実行者にチャンネル管理権限を付与する必要がない |
 | ヘルプ表示 | `@Bot help` または `@Bot usage` とメンションすると、この機能一覧をチャット上に返信する |
 | 管理画面 | キーワード・通知先チャンネルをブラウザから編集できる簡易CMS（認証なし・localhost限定） |
 | devモード | `DEV_MODE=true` 設定時、`DEV_CHANNEL_ID` で指定したチャンネル以外の投稿には全機能が反応しなくなる。絵文字追加通知はチャンネルを持たないため、dev mode中は全ギルドで通知自体を停止する（動作確認時の誤爆防止） |
@@ -64,7 +65,7 @@ adr/                             … Architecture Decision Record
 3. 「Bot」タブの **Privileged Gateway Intents** で以下を有効化
    - `MESSAGE CONTENT INTENT`（キーワード検知・俳句/短歌判定に必須）
 4. 「OAuth2 > URL Generator」で `bot` スコープと以下の権限を選択し、生成されたURLからサーバーへ招待
-   - `Send Messages`, `Read Message History`, `View Channels`
+   - `Send Messages`, `Read Message History`, `View Channels`, `Manage Channels`（チャンネル作成コマンドに必須）
 
 ### 2. 環境変数の設定
 

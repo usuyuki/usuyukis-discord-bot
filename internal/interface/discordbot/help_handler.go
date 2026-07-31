@@ -52,7 +52,8 @@ func helpMessage(botID, botName string) string {
 			"- 俳句・短歌検知: 投稿を形態素解析し、5-7-5または5-7-5-7-7と判定できたら投稿元チャンネルへ通知する\n"+
 			"- 絵文字追加通知: ギルドへ絵文字が追加されたことを検知して通知する\n"+
 			"- スロット: 「%s」と発言する（メンション不要）とギルドのカスタム絵文字（少なければ標準絵文字）から3つ抽選する。3つ揃うと大当たり、2つ揃うと小当たり\n"+
+			"- チャンネル作成: `%s channel create <チャンネル名>` で公開チャンネルを作成する。`%s channel create-private <チャンネル名> [@メンバー ...]` でメンションしたメンバーと自分だけが閲覧できるプライベートチャンネルを作成する（Botの権限で作成するため、実行者自身にチャンネル管理権限は不要）\n"+
 			"- ヘルプ: `%s help` または `%s usage` でこの一覧を表示する",
-		name, tag, slotTriggerPhrase, tag, tag,
+		name, tag, slotTriggerPhrase, tag, tag, tag, tag,
 	)
 }
