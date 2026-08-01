@@ -115,10 +115,15 @@ func TestIsHelpCommand(t *testing.T) {
 			content: "<@bot>",
 			want:    false,
 		},
+		{
+			name:    "正常系: 構造化メンションでなく地の文の@botName表記でもhelpを認識する（コピペ救済）",
+			content: "@usuyuki help",
+			want:    true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isHelpCommand(tt.content, "bot"); got != tt.want {
+			if got := isHelpCommand(tt.content, "bot", []string{"usuyuki"}); got != tt.want {
 				t.Errorf("isHelpCommand(%q) = %v, want %v", tt.content, got, tt.want)
 			}
 		})

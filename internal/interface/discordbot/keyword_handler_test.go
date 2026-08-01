@@ -287,9 +287,10 @@ func TestKeywordHandler_HandleMessage_AutoReply_ExpandsNowPlaceholder(t *testing
 
 func TestParseKeywordCommand(t *testing.T) {
 	tests := []struct {
-		name    string
-		content string
-		want    *keywordCommand
+		name     string
+		content  string
+		botNames []string
+		want     *keywordCommand
 	}{
 		{
 			name:    "正常系: メンション1つに続くaddコマンドを解析できる",
@@ -332,7 +333,7 @@ func TestParseKeywordCommand(t *testing.T) {
 			want:    nil,
 		},
 		{
-			name:    "異常系: テキストの@メンション風表記は構造化メンションでないため除去されず、keyword以外の先頭語としてnilを返す",
+			name:    "異常系: テキストの@メンション風表記でもbotNameが未指定なら除去されず、keyword以外の先頭語としてnilを返す",
 			content: "@bot keyword add ぬるぽ ガッ",
 			want:    nil,
 		},
@@ -346,10 +347,16 @@ func TestParseKeywordCommand(t *testing.T) {
 			content: "<@bot> keyword add <@notanid> ガッ",
 			want:    &keywordCommand{Sub: "add", Word: "<@notanid>", Response: "ガッ"},
 		},
+		{
+			name:     "正常系: 構造化メンションでなく地の文の@botName表記でもkeywordコマンドを認識する（コピペ救済）",
+			content:  "@usuyuki keyword add ぬるぽ ガッ",
+			botNames: []string{"usuyuki"},
+			want:     &keywordCommand{Sub: "add", Word: "ぬるぽ", Response: "ガッ"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseKeywordCommand(tt.content, "bot")
+			got := parseKeywordCommand(tt.content, "bot", tt.botNames)
 			if (got == nil) != (tt.want == nil) {
 				t.Fatalf("parseKeywordCommand(%q) = %+v, want %+v", tt.content, got, tt.want)
 			}

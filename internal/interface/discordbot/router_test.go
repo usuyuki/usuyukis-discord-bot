@@ -3,6 +3,7 @@ package discordbot
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
@@ -47,10 +48,10 @@ func TestRouter_DispatchMessage(t *testing.T) {
 		msg := IncomingMessage{GuildID: "g1", Content: "hello"}
 		r.DispatchMessage(context.Background(), msg)
 
-		if len(h1.received) != 1 || h1.received[0] != msg {
+		if len(h1.received) != 1 || !reflect.DeepEqual(h1.received[0], msg) {
 			t.Errorf("h1 did not receive expected message: %v", h1.received)
 		}
-		if len(h2.received) != 1 || h2.received[0] != msg {
+		if len(h2.received) != 1 || !reflect.DeepEqual(h2.received[0], msg) {
 			t.Errorf("h2 did not receive expected message: %v", h2.received)
 		}
 	})

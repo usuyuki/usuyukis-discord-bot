@@ -33,7 +33,7 @@ func (h *ChannelHandler) HandleMessage(ctx context.Context, msg IncomingMessage)
 	if !msg.MentionsBotID {
 		return nil
 	}
-	name, ok := parseChannelCreateCommand(msg.Content, msg.BotID)
+	name, ok := parseChannelCreateCommand(msg.Content, msg.BotID, msg.BotMentionNames)
 	if !ok {
 		return nil
 	}
@@ -52,8 +52,8 @@ func (h *ChannelHandler) HandleMessage(ctx context.Context, msg IncomingMessage)
 // parseChannelCreateCommand はメンションを除いたメッセージ本文から
 // "channel create <name>"形式のコマンドを解析する。"channel create"で始まらない場合は
 // okがfalseになる。nameが省略された場合はokがtrueのまま空文字を返す（使い方案内の対象）
-func parseChannelCreateCommand(content, botID string) (name string, ok bool) {
-	filtered := stripMentionTokens(strings.Fields(content), botID)
+func parseChannelCreateCommand(content, botID string, botNames []string) (name string, ok bool) {
+	filtered := stripMentionTokens(strings.Fields(content), botID, botNames)
 	if len(filtered) < 2 || filtered[0] != "channel" || filtered[1] != "create" {
 		return "", false
 	}
