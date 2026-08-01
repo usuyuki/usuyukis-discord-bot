@@ -2,10 +2,15 @@ package channel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/channel"
 )
+
+// ErrNotifyCreatedFailed はチャンネル作成・提案の解決自体は成功したが、作成完了の通知メッセージ
+// 送信にのみ失敗したことを表す。呼び出し元がこれをチャンネル作成失敗と誤認しないよう区別するために使う
+var ErrNotifyCreatedFailed = errors.New("channel: failed to notify channel creation")
 
 // UseCase は一般ユーザーからのコマンドに応じてBotが代理でチャンネルを作成するアプリケーションロジック。
 // 一般ユーザーにManageChannelsロールを付与する運用は、ギルド全体に及ぶ権限のため他人の
@@ -102,7 +107,16 @@ func (u *UseCase) RecordReaction(ctx context.Context, channelID, messageID strin
 		}
 		return err
 	}
-	return u.notifier.NotifyCreated(ctx, channelID, proposal.ChannelName)
+
+	// この時点でチャンネル作成・提案の解決は既に確定している。通知はベストエフォートの
+	// 後続処理であり、ここで失敗してもチャンネル作成自体をやり直す必要はない
+	// （resolvedを戻すと同名チャンネルの二重作成につながる）ため、Unresolveはしない。
+	// 呼び出し元がチャンネル作成の失敗と誤認しないよう、専用エラーでラップして区別できるようにする
+	content := fmt.Sprintf("#%s を作成したよ！", proposal.ChannelName)
+	if err := u.notifier.SendMessage(ctx, channelID, content); err != nil {
+		return fmt.Errorf("%w: %w", ErrNotifyCreatedFailed, err)
+	}
+	return nil
 }
 
 // requiredApprovals はguildIDに設定された必要承認人数を返す。未設定の場合はデフォルト値を使う

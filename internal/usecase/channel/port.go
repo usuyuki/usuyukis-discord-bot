@@ -13,10 +13,11 @@ type ProposalMessenger interface {
 	SendProposal(ctx context.Context, channelID, content string) (messageID string, err error)
 }
 
-// Notifier はチャンネル作成が完了したことを提案元のチャンネルへ通知するport。
-// infrastructure層が実装する
+// Notifier はチャンネル作成が完了したことなどを提案元のチャンネルへ通知するport。
+// haiku/emoji等の既存ユースケースが使うMessageSenderと同一シグネチャのため、
+// infrastructure層はそれらと同じ実装を再利用できる
 type Notifier interface {
-	NotifyCreated(ctx context.Context, channelID, channelName string) error
+	SendMessage(ctx context.Context, channelID, content string) error
 }
 
 // ApprovalCounter はDiscord上の実際のリアクション状態から、提案メッセージに反応した
