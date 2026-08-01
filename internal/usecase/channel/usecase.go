@@ -20,11 +20,12 @@ type UseCase struct {
 	counter   ApprovalCounter
 	proposals ProposalRepository
 	settings  SettingRepository
+	notifier  Notifier
 }
 
 // New はUseCaseを生成する
-func New(creator Creator, messenger ProposalMessenger, counter ApprovalCounter, proposals ProposalRepository, settings SettingRepository) *UseCase {
-	return &UseCase{creator: creator, messenger: messenger, counter: counter, proposals: proposals, settings: settings}
+func New(creator Creator, messenger ProposalMessenger, counter ApprovalCounter, proposals ProposalRepository, settings SettingRepository, notifier Notifier) *UseCase {
+	return &UseCase{creator: creator, messenger: messenger, counter: counter, proposals: proposals, settings: settings, notifier: notifier}
 }
 
 // Propose はnameを検証した上で、channelIDに提案メッセージを送信し、提案を保存する。
@@ -101,7 +102,7 @@ func (u *UseCase) RecordReaction(ctx context.Context, channelID, messageID strin
 		}
 		return err
 	}
-	return nil
+	return u.notifier.NotifyCreated(ctx, channelID, proposal.ChannelName)
 }
 
 // requiredApprovals はguildIDに設定された必要承認人数を返す。未設定の場合はデフォルト値を使う

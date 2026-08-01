@@ -45,6 +45,25 @@ func (m *ChannelProposalMessenger) SendProposal(ctx context.Context, channelID, 
 	return msg.ID, nil
 }
 
+// ChannelCreationNotifier はusecase/channel.Notifierのdiscordgo実装
+type ChannelCreationNotifier struct {
+	session *discordgo.Session
+}
+
+// NewChannelCreationNotifier はChannelCreationNotifierを生成する
+func NewChannelCreationNotifier(session *discordgo.Session) *ChannelCreationNotifier {
+	return &ChannelCreationNotifier{session: session}
+}
+
+// NotifyCreated はchannelIDへ、channelNameのチャンネルが作成されたことを知らせるメッセージを送信する
+func (n *ChannelCreationNotifier) NotifyCreated(ctx context.Context, channelID, channelName string) error {
+	content := fmt.Sprintf("#%s を作成したよ！", channelName)
+	if _, err := n.session.ChannelMessageSend(channelID, content); err != nil {
+		return fmt.Errorf("discord: failed to send channel creation notice: %w", err)
+	}
+	return nil
+}
+
 // ChannelApprovalCounter はusecase/channel.ApprovalCounterのdiscordgo実装
 type ChannelApprovalCounter struct {
 	session *discordgo.Session

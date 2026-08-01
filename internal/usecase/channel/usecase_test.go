@@ -47,6 +47,21 @@ func (f *fakeCounter) CountUniqueReactors(ctx context.Context, channelID, messag
 	return f.count, f.err
 }
 
+// fakeNotifier はテスト用のNotifierフェイク実装
+type fakeNotifier struct {
+	called       bool
+	gotChannelID string
+	gotName      string
+	err          error
+}
+
+func (f *fakeNotifier) NotifyCreated(ctx context.Context, channelID, channelName string) error {
+	f.called = true
+	f.gotChannelID = channelID
+	f.gotName = channelName
+	return f.err
+}
+
 // fakeProposalRepo はテスト用のProposalRepositoryフェイク実装（インメモリ）。
 // TryResolveは実際のpostgres実装同様、resolvedがまだfalseの場合にのみtrueへ遷移させ
 // claimed=trueを返すことで、二重解決防止のロジックをフェイク上でも再現する
@@ -125,8 +140,8 @@ func (f *fakeSettingRepo) Set(ctx context.Context, guildID string, requiredAppro
 	return f.setErr
 }
 
-func newTestUseCase(creator Creator, messenger ProposalMessenger, counter ApprovalCounter, proposals ProposalRepository, settings SettingRepository) *UseCase {
-	return New(creator, messenger, counter, proposals, settings)
+func newTestUseCase(creator Creator, messenger ProposalMessenger, counter ApprovalCounter, proposals ProposalRepository, settings SettingRepository, notifier Notifier) *UseCase {
+	return New(creator, messenger, counter, proposals, settings, notifier)
 }
 
 func TestUseCase_Propose(t *testing.T) {
@@ -134,7 +149,7 @@ func TestUseCase_Propose(t *testing.T) {
 		creator := &fakeCreator{}
 		messenger := &fakeMessenger{returnMsgID: "msg1"}
 		repo := newFakeProposalRepo()
-		u := newTestUseCase(creator, messenger, &fakeCounter{}, repo, &fakeSettingRepo{})
+		u := newTestUseCase(creator, messenger, &fakeCounter{}, repo, &fakeSettingRepo{}, &fakeNotifier{})
 
 		if err := u.Propose(context.Background(), "g1", "c1", "user1", "general-chat"); err != nil {
 			t.Fatalf("Propose() unexpected error = %v", err)
@@ -157,7 +172,7 @@ func TestUseCase_Propose(t *testing.T) {
 	t.Run("異常系: 不正な名前を入れるとNewNameがエラーになり提案は送信されない", func(t *testing.T) {
 		messenger := &fakeMessenger{}
 		repo := newFakeProposalRepo()
-		u := newTestUseCase(&fakeCreator{}, messenger, &fakeCounter{}, repo, &fakeSettingRepo{})
+		u := newTestUseCase(&fakeCreator{}, messenger, &fakeCounter{}, repo, &fakeSettingRepo{}, &fakeNotifier{})
 
 		err := u.Propose(context.Background(), "g1", "c1", "user1", "Invalid Name!")
 		if err == nil {
@@ -177,7 +192,7 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		repo.findFound = true
 		counter := &fakeCounter{count: 1}
 		settings := &fakeSettingRepo{required: 2, found: true}
-		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, settings)
+		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, settings, &fakeNotifier{})
 
 		if err := u.RecordReaction(context.Background(), "c1", "msg1"); err != nil {
 			t.Fatalf("RecordReaction() unexpected error = %v", err)
@@ -194,7 +209,8 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		repo.findFound = true
 		counter := &fakeCounter{count: 2}
 		settings := &fakeSettingRepo{required: 2, found: true}
-		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, settings)
+		notifier := &fakeNotifier{}
+		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, settings, notifier)
 
 		if err := u.RecordReaction(context.Background(), "c1", "msg1"); err != nil {
 			t.Fatalf("RecordReaction() unexpected error = %v", err)
@@ -208,6 +224,12 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		if !repo.resolved["c1/msg1"] {
 			t.Error("RecordReaction() should mark the proposal as resolved")
 		}
+		if !notifier.called {
+			t.Fatal("RecordReaction() should notify the proposal channel that the channel was created")
+		}
+		if notifier.gotChannelID != "c1" || notifier.gotName != "general-chat" {
+			t.Errorf("Notifier received channelID=%q name=%q, want c1/general-chat", notifier.gotChannelID, notifier.gotName)
+		}
 	})
 
 	t.Run("正常系: 必要承認人数がギルド未設定ならデフォルト値(2)が使われる", func(t *testing.T) {
@@ -217,7 +239,7 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		repo.findFound = true
 		counter := &fakeCounter{count: 2}
 		settings := &fakeSettingRepo{found: false}
-		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, settings)
+		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, settings, &fakeNotifier{})
 
 		if err := u.RecordReaction(context.Background(), "c1", "msg1"); err != nil {
 			t.Fatalf("RecordReaction() unexpected error = %v", err)
@@ -231,7 +253,7 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		creator := &fakeCreator{}
 		repo := newFakeProposalRepo()
 		repo.findFound = false
-		u := newTestUseCase(creator, &fakeMessenger{}, &fakeCounter{count: 5}, repo, &fakeSettingRepo{required: 2, found: true})
+		u := newTestUseCase(creator, &fakeMessenger{}, &fakeCounter{count: 5}, repo, &fakeSettingRepo{required: 2, found: true}, &fakeNotifier{})
 
 		if err := u.RecordReaction(context.Background(), "c1", "msg1"); err != nil {
 			t.Fatalf("RecordReaction() unexpected error = %v", err)
@@ -247,7 +269,7 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		repo.findResult = Proposal{GuildID: "g1", ChannelID: "c1", MessageID: "msg1", ChannelName: "general-chat", ProposerID: "user1", Resolved: true}
 		repo.findFound = true
 		counter := &fakeCounter{count: 5}
-		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, &fakeSettingRepo{required: 2, found: true})
+		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, &fakeSettingRepo{required: 2, found: true}, &fakeNotifier{})
 
 		if err := u.RecordReaction(context.Background(), "c1", "msg1"); err != nil {
 			t.Fatalf("RecordReaction() unexpected error = %v", err)
@@ -264,7 +286,8 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		repo.findResult = Proposal{GuildID: "g1", ChannelID: "c1", MessageID: "msg1", ChannelName: "general-chat", ProposerID: "user1"}
 		repo.findFound = true
 		counter := &fakeCounter{count: 2}
-		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, &fakeSettingRepo{required: 2, found: true})
+		notifier := &fakeNotifier{}
+		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, &fakeSettingRepo{required: 2, found: true}, notifier)
 
 		err := u.RecordReaction(context.Background(), "c1", "msg1")
 		if !errors.Is(err, wantErr) {
@@ -272,6 +295,9 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		}
 		if repo.resolved["c1/msg1"] {
 			t.Error("RecordReaction() should unresolve the proposal when channel creation fails, so a later reaction can retry")
+		}
+		if notifier.called {
+			t.Error("RecordReaction() should not notify when channel creation fails")
 		}
 	})
 
@@ -282,7 +308,7 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		repo.findFound = true
 		repo.alreadyResolvedOnClaim = true
 		counter := &fakeCounter{count: 2}
-		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, &fakeSettingRepo{required: 2, found: true})
+		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, &fakeSettingRepo{required: 2, found: true}, &fakeNotifier{})
 
 		if err := u.RecordReaction(context.Background(), "c1", "msg1"); err != nil {
 			t.Fatalf("RecordReaction() unexpected error = %v", err)
@@ -296,7 +322,7 @@ func TestUseCase_RecordReaction(t *testing.T) {
 func TestUseCase_GetRequiredApprovals(t *testing.T) {
 	t.Run("正常系: 設定済みならその値を返す", func(t *testing.T) {
 		settings := &fakeSettingRepo{required: 3, found: true}
-		u := newTestUseCase(&fakeCreator{}, &fakeMessenger{}, &fakeCounter{}, newFakeProposalRepo(), settings)
+		u := newTestUseCase(&fakeCreator{}, &fakeMessenger{}, &fakeCounter{}, newFakeProposalRepo(), settings, &fakeNotifier{})
 
 		got, err := u.GetRequiredApprovals(context.Background(), "g1")
 		if err != nil {
@@ -309,7 +335,7 @@ func TestUseCase_GetRequiredApprovals(t *testing.T) {
 
 	t.Run("異常系: 未設定ならデフォルト値(2)を返す", func(t *testing.T) {
 		settings := &fakeSettingRepo{found: false}
-		u := newTestUseCase(&fakeCreator{}, &fakeMessenger{}, &fakeCounter{}, newFakeProposalRepo(), settings)
+		u := newTestUseCase(&fakeCreator{}, &fakeMessenger{}, &fakeCounter{}, newFakeProposalRepo(), settings, &fakeNotifier{})
 
 		got, err := u.GetRequiredApprovals(context.Background(), "g1")
 		if err != nil {
@@ -324,7 +350,7 @@ func TestUseCase_GetRequiredApprovals(t *testing.T) {
 func TestUseCase_SetRequiredApprovals(t *testing.T) {
 	t.Run("正常系: 1以上の値ならRepositoryへ保存する", func(t *testing.T) {
 		settings := &fakeSettingRepo{}
-		u := newTestUseCase(&fakeCreator{}, &fakeMessenger{}, &fakeCounter{}, newFakeProposalRepo(), settings)
+		u := newTestUseCase(&fakeCreator{}, &fakeMessenger{}, &fakeCounter{}, newFakeProposalRepo(), settings, &fakeNotifier{})
 
 		if err := u.SetRequiredApprovals(context.Background(), "g1", 3); err != nil {
 			t.Fatalf("SetRequiredApprovals() unexpected error = %v", err)
@@ -336,7 +362,7 @@ func TestUseCase_SetRequiredApprovals(t *testing.T) {
 
 	t.Run("異常系: 0以下を入れるとNewRequiredApprovalsがエラーになりRepositoryは呼ばれない", func(t *testing.T) {
 		settings := &fakeSettingRepo{}
-		u := newTestUseCase(&fakeCreator{}, &fakeMessenger{}, &fakeCounter{}, newFakeProposalRepo(), settings)
+		u := newTestUseCase(&fakeCreator{}, &fakeMessenger{}, &fakeCounter{}, newFakeProposalRepo(), settings, &fakeNotifier{})
 
 		err := u.SetRequiredApprovals(context.Background(), "g1", 0)
 		if err == nil {
