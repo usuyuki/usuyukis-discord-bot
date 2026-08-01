@@ -23,6 +23,16 @@ func TestNewName(t *testing.T) {
 			want: "my_channel",
 		},
 		{
+			name: "正常系: ひらがな・カタカナ・漢字を含む名前も登録できる",
+			raw:  "雑談チャンネルその1",
+			want: "雑談チャンネルその1",
+		},
+		{
+			name: "正常系: 日本語とハイフン・アンダースコアの混在も登録できる",
+			raw:  "お知らせ-general_ch",
+			want: "お知らせ-general_ch",
+		},
+		{
 			name:    "異常系: 空文字を入れると名前が空になるのでエラーになる",
 			raw:     "",
 			wantErr: true,

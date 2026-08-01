@@ -79,7 +79,7 @@ func TestChannelHandler_HandleMessage(t *testing.T) {
 	})
 
 	t.Run("異常系: UseCaseがエラーを返すとエラー内容を通知しエラーは返さない（ユーザー起因の入力ミスのため）", func(t *testing.T) {
-		uc := &fakeChannelProposeUseCase{err: errors.New("channel: name must contain only lowercase letters, numbers, hyphens, and underscores")}
+		uc := &fakeChannelProposeUseCase{err: errors.New("channel: name must contain only lowercase letters, numbers, hyphens, underscores, or Japanese characters")}
 		sender := &fakeMessageSender{}
 		h := NewChannelHandler(uc, sender)
 
