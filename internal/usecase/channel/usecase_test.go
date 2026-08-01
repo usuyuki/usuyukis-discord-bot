@@ -8,17 +8,21 @@ import (
 
 // fakeCreator はテスト用のCreatorフェイク実装
 type fakeCreator struct {
-	called     bool
-	gotGuildID string
-	gotName    string
-	err        error
+	called          bool
+	gotGuildID      string
+	gotName         string
+	returnChannelID string
+	err             error
 }
 
-func (f *fakeCreator) CreateTextChannel(ctx context.Context, guildID, name string) error {
+func (f *fakeCreator) CreateTextChannel(ctx context.Context, guildID, name string) (string, error) {
 	f.called = true
 	f.gotGuildID = guildID
 	f.gotName = name
-	return f.err
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.returnChannelID, nil
 }
 
 // fakeMessenger はテスト用のProposalMessengerフェイク実装
@@ -203,7 +207,7 @@ func TestUseCase_RecordReaction(t *testing.T) {
 	})
 
 	t.Run("正常系: 承認数が必要数に達するとチャンネルを作成し提案を解決済みにする", func(t *testing.T) {
-		creator := &fakeCreator{}
+		creator := &fakeCreator{returnChannelID: "new-channel-id"}
 		repo := newFakeProposalRepo()
 		repo.findResult = Proposal{GuildID: "g1", ChannelID: "c1", MessageID: "msg1", ChannelName: "general-chat", ProposerID: "user1"}
 		repo.findFound = true
@@ -227,8 +231,9 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		if !notifier.called {
 			t.Fatal("RecordReaction() should notify the proposal channel that the channel was created")
 		}
-		if notifier.gotChannelID != "c1" || notifier.gotContent != "#general-chat を作成したよ！" {
-			t.Errorf("Notifier received channelID=%q content=%q, want c1/%q", notifier.gotChannelID, notifier.gotContent, "#general-chat を作成したよ！")
+		// <#channelID>はDiscord上でクリック可能なチャンネルリンクとして表示される
+		if notifier.gotChannelID != "c1" || notifier.gotContent != "<#new-channel-id> を作成したよ！" {
+			t.Errorf("Notifier received channelID=%q content=%q, want c1/%q", notifier.gotChannelID, notifier.gotContent, "<#new-channel-id> を作成したよ！")
 		}
 	})
 

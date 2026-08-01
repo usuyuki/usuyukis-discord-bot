@@ -99,7 +99,8 @@ func (u *UseCase) RecordReaction(ctx context.Context, channelID, messageID strin
 		return nil
 	}
 
-	if err := u.creator.CreateTextChannel(ctx, proposal.GuildID, proposal.ChannelName); err != nil {
+	createdChannelID, err := u.creator.CreateTextChannel(ctx, proposal.GuildID, proposal.ChannelName)
+	if err != nil {
 		// チャンネル作成に失敗した場合は解決権を手放し、以降のリアクションイベントで
 		// 再度作成を試みられるようにする
 		if unresolveErr := u.proposals.Unresolve(ctx, channelID, messageID); unresolveErr != nil {
@@ -111,8 +112,9 @@ func (u *UseCase) RecordReaction(ctx context.Context, channelID, messageID strin
 	// この時点でチャンネル作成・提案の解決は既に確定している。通知はベストエフォートの
 	// 後続処理であり、ここで失敗してもチャンネル作成自体をやり直す必要はない
 	// （resolvedを戻すと同名チャンネルの二重作成につながる）ため、Unresolveはしない。
-	// 呼び出し元がチャンネル作成の失敗と誤認しないよう、専用エラーでラップして区別できるようにする
-	content := fmt.Sprintf("#%s を作成したよ！", proposal.ChannelName)
+	// 呼び出し元がチャンネル作成の失敗と誤認しないよう、専用エラーでラップして区別できるようにする。
+	// <#channelID>はDiscord側でクリック可能なチャンネルリンクとして自動的に表示される
+	content := fmt.Sprintf("<#%s> を作成したよ！", createdChannelID)
 	if err := u.notifier.SendMessage(ctx, channelID, content); err != nil {
 		return fmt.Errorf("%w: %w", ErrNotifyCreatedFailed, err)
 	}

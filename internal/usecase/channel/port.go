@@ -2,9 +2,10 @@ package channel
 
 import "context"
 
-// Creator はギルドに公開テキストチャンネルを作成するport。infrastructure層が実装する
+// Creator はギルドに公開テキストチャンネルを作成するport。infrastructure層が実装する。
+// 戻り値のchannelIDは、作成完了通知でチャンネルへのリンクを組み立てるために使う
 type Creator interface {
-	CreateTextChannel(ctx context.Context, guildID, name string) error
+	CreateTextChannel(ctx context.Context, guildID, name string) (channelID string, err error)
 }
 
 // ProposalMessenger はチャンネル作成提案メッセージの送信・自己リアクション付与を行うport。
