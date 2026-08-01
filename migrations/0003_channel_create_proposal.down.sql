@@ -1,0 +1,2 @@
+DROP TABLE channel_create_proposals;
+DROP TABLE guild_channel_create_settings;

@@ -66,10 +66,14 @@ func run() error {
 
 	keywordRepo := postgres.NewKeywordRepository(pool)
 	notifyChannelRepo := postgres.NewNotifyChannelRepository(pool)
+	channelProposalRepo := postgres.NewChannelProposalRepository(pool)
+	channelSettingRepo := postgres.NewChannelSettingRepository(pool)
 	messageSender := discordInfra.NewMessageSender(session)
 	guildCache := discordInfra.NewGuildCache(session)
 	emojiSource := discordInfra.NewEmojiSource(session)
-	channelRestrictor := discordInfra.NewChannelRestrictor(session)
+	channelCreator := discordInfra.NewChannelCreator(session)
+	channelProposalMessenger := discordInfra.NewChannelProposalMessenger(session)
+	channelApprovalCounter := discordInfra.NewChannelApprovalCounter(session)
 
 	randomizer := discordInfra.NewRandomizer()
 	keywordUseCase := keywordUC.New(keywordRepo, randomizer)
@@ -77,7 +81,7 @@ func run() error {
 	haikuUseCase := haikuUC.New(analyzer, messageSender)
 	emojiUseCase := emojiUC.New(notifyChannelRepo, messageSender)
 	slotUseCase := slotUC.New(emojiSource, randomizer)
-	channelUseCase := channelUC.New(channelRestrictor)
+	channelUseCase := channelUC.New(channelCreator, channelProposalMessenger, channelApprovalCounter, channelProposalRepo, channelSettingRepo)
 
 	router := discordbot.NewRouter()
 	if cfg.DevMode {
@@ -88,8 +92,9 @@ func run() error {
 	router.RegisterMessageHandler(discordbot.NewHaikuHandler(haikuUseCase))
 	router.RegisterMessageHandler(discordbot.NewHelpHandler(messageSender))
 	router.RegisterMessageHandler(discordbot.NewSlotHandler(slotUseCase, messageSender))
+	router.RegisterMessageHandler(discordbot.NewChannelHandler(channelUseCase, messageSender))
 	router.RegisterEmojiUpdateHandler(discordbot.NewEmojiHandler(emojiUseCase))
-	router.RegisterChannelCreateHandler(discordbot.NewChannelHandler(channelUseCase))
+	router.RegisterReactionAddHandler(discordbot.NewReactionHandler(channelUseCase))
 
 	discordInfra.RegisterEventBridge(session, router, discordInfra.DefaultAdminPermissionChecker)
 
@@ -107,6 +112,7 @@ func run() error {
 		admin.NewDiscordGuildDirectory(guildCache),
 		keywordUseCase,
 		notifyChannelUseCase,
+		channelUseCase,
 	)
 	if err != nil {
 		return err

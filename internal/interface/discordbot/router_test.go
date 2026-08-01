@@ -27,11 +27,11 @@ func (h *recordingEmojiHandler) HandleEmojiUpdate(ctx context.Context, ev Incomi
 	return nil
 }
 
-type recordingChannelCreateHandler struct {
-	received []IncomingChannelCreate
+type recordingReactionAddHandler struct {
+	received []IncomingReactionAdd
 }
 
-func (h *recordingChannelCreateHandler) HandleChannelCreate(ctx context.Context, ev IncomingChannelCreate) error {
+func (h *recordingReactionAddHandler) HandleReactionAdd(ctx context.Context, ev IncomingReactionAdd) error {
 	h.received = append(h.received, ev)
 	return nil
 }
@@ -145,30 +145,43 @@ func TestRouter_DispatchEmojiUpdate(t *testing.T) {
 	})
 }
 
-func TestRouter_DispatchChannelCreate(t *testing.T) {
-	t.Run("正常系: 登録済み全ハンドラにチャンネル作成イベントが配送される", func(t *testing.T) {
+func TestRouter_DispatchReactionAdd(t *testing.T) {
+	t.Run("正常系: 登録済み全ハンドラにリアクション追加イベントが配送される", func(t *testing.T) {
 		r := NewRouter()
-		h := &recordingChannelCreateHandler{}
-		r.RegisterChannelCreateHandler(h)
+		h := &recordingReactionAddHandler{}
+		r.RegisterReactionAddHandler(h)
 
-		ev := IncomingChannelCreate{GuildID: "g1", ChannelID: "c1", IsPrivate: true, CreatorID: "user1"}
-		r.DispatchChannelCreate(context.Background(), ev)
+		ev := IncomingReactionAdd{ChannelID: "c1", MessageID: "msg1"}
+		r.DispatchReactionAdd(context.Background(), ev)
 
 		if len(h.received) != 1 || h.received[0] != ev {
 			t.Errorf("handler did not receive expected event: %v", h.received)
 		}
 	})
 
-	t.Run("異常系: dev mode設定時はチャンネル作成イベントはチャンネル概念を持たないため配送されない", func(t *testing.T) {
+	t.Run("異常系: dev mode設定時は指定チャンネル以外のリアクションは配送されない", func(t *testing.T) {
 		r := NewRouter()
 		r.SetDevChannelID("dev-channel")
-		h := &recordingChannelCreateHandler{}
-		r.RegisterChannelCreateHandler(h)
+		h := &recordingReactionAddHandler{}
+		r.RegisterReactionAddHandler(h)
 
-		r.DispatchChannelCreate(context.Background(), IncomingChannelCreate{GuildID: "g1", ChannelID: "c1"})
+		r.DispatchReactionAdd(context.Background(), IncomingReactionAdd{ChannelID: "other-channel", MessageID: "msg1"})
 
 		if len(h.received) != 0 {
-			t.Errorf("handler should not receive channel create events while dev mode is enabled, got %v", h.received)
+			t.Errorf("handler should not receive reaction events from a non-dev channel, got %v", h.received)
+		}
+	})
+
+	t.Run("正常系: dev mode設定時は指定チャンネルのリアクションは配送される", func(t *testing.T) {
+		r := NewRouter()
+		r.SetDevChannelID("dev-channel")
+		h := &recordingReactionAddHandler{}
+		r.RegisterReactionAddHandler(h)
+
+		r.DispatchReactionAdd(context.Background(), IncomingReactionAdd{ChannelID: "dev-channel", MessageID: "msg1"})
+
+		if len(h.received) != 1 {
+			t.Errorf("handler should receive the reaction event from the dev channel, got %v", h.received)
 		}
 	})
 }

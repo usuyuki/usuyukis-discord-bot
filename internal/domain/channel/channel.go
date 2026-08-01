@@ -1,36 +1,40 @@
-// Package channel はDiscordのチャンネル権限オーバーライドに関する純粋な判定ロジックを提供する
+// Package channel はDiscordのチャンネル名に関する純粋な検証ロジックを提供する
 package channel
 
-// Discordの権限ビット値。domain層は外部ライブラリに依存しないため、discordgoの定数を
-// 参照せずリテラルとして持つ（値そのものはDiscord API仕様として固定されている）
-const (
-	permViewChannel    int64 = 1 << 10
-	permManageChannels int64 = 1 << 4
-	permAdministrator  int64 = 1 << 3
+import (
+	"fmt"
+	"regexp"
 )
 
-// Overwrite はチャンネルに設定されたロール単位の権限オーバーライドを表す薄い値
-type Overwrite struct {
-	RoleID string
-	Deny   int64
+// maxNameLength はDiscordのチャンネル名の最大文字数
+const maxNameLength = 100
+
+// validNamePattern はDiscordが実際に許容する文字集合を全て検証するものではないが、
+// 一般ユーザーが誤って紛らわしい名前（絵文字や制御文字など）を作らないよう、
+// 英数字・ハイフン・アンダースコアのみに絞る運用上の制約
+var validNamePattern = regexp.MustCompile(`^[a-z0-9_-]+$`)
+
+// Name はバリデーション済みのチャンネル名を表す値オブジェクト
+type Name struct {
+	value string
 }
 
-// IsPrivate はoverwritesの中に@everyoneロール（IDはguildIDと同一）へのViewChannel拒否が
-// 含まれていればtrueを返す。Discordの「プライベートチャンネル」はこの状態を指す
-func IsPrivate(guildID string, overwrites []Overwrite) bool {
-	for _, ow := range overwrites {
-		if ow.RoleID == guildID && ow.Deny&permViewChannel != 0 {
-			return true
-		}
+// NewName はrawをチャンネル名として検証し、Nameを返す。
+// 空文字・最大長超過・許容文字以外を含む場合はエラーを返す
+func NewName(raw string) (Name, error) {
+	if raw == "" {
+		return Name{}, fmt.Errorf("channel: name must not be empty")
 	}
-	return false
+	if len(raw) > maxNameLength {
+		return Name{}, fmt.Errorf("channel: name must be %d characters or fewer, got %d", maxNameLength, len(raw))
+	}
+	if !validNamePattern.MatchString(raw) {
+		return Name{}, fmt.Errorf("channel: name %q must contain only lowercase letters, numbers, hyphens, and underscores", raw)
+	}
+	return Name{value: raw}, nil
 }
 
-// IsChannelManagerRole はpermissionsがManageChannelsを持ちながらAdministratorは
-// 持たないロールかどうかを判定する。Administrator権限保持者はDiscordの仕様上チャンネル単位の
-// 権限オーバーライドを常にバイパスするため、明示的な閲覧拒否を設定しても操作できてしまい対象外となる。
-// この関数がtrueを返すロールは、明示的にオーバーライドで拒否しない限り一般ユーザーでも
-// 他人が作った非公開チャンネルへアクセスできてしまう対象を表す
-func IsChannelManagerRole(permissions int64) bool {
-	return permissions&permManageChannels != 0 && permissions&permAdministrator == 0
+// String はチャンネル名の文字列表現を返す
+func (n Name) String() string {
+	return n.value
 }

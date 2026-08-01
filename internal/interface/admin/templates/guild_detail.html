@@ -63,4 +63,13 @@
   </div>
   <button type="submit">設定</button>
 </form>
+
+<h2>チャンネル作成の必要承認人数</h2>
+<p>「<code>@Bot channel create &lt;チャンネル名&gt;</code>」による提案が、ここで設定した人数分の✅リアクション（提案者自身を含む）を集めると実際にチャンネルが作成されます。</p>
+<form method="post" action="/guilds/{{.GuildID}}/channel-create-setting">
+  <div class="form-row">
+    <label>必要承認人数 <input type="number" name="required_approvals" min="1" value="{{.ChannelCreateRequiredApprovals}}" required></label>
+  </div>
+  <button type="submit">設定</button>
+</form>
 {{end}}

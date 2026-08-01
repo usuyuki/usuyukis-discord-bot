@@ -4,66 +4,140 @@ import (
 	"context"
 	"errors"
 	"testing"
-
-	channelUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/channel"
 )
 
-// fakeRestrictor はテスト用のRestrictorフェイク実装。呼び出されたかと引数を記録する
-type fakeRestrictor struct {
-	called       bool
-	gotGuildID   string
-	gotChannelID string
-	gotCreatorID string
-	err          error
+// fakeChannelProposeUseCase はテスト用のUseCaseフェイク実装。呼び出されたかと引数を記録する
+type fakeChannelProposeUseCase struct {
+	called        bool
+	gotGuildID    string
+	gotChannelID  string
+	gotProposerID string
+	gotName       string
+	err           error
 }
 
-func (f *fakeRestrictor) RestrictToCreatorAndAdmins(ctx context.Context, guildID, channelID, creatorUserID string) error {
+func (f *fakeChannelProposeUseCase) Propose(ctx context.Context, guildID, channelID, proposerID, name string) error {
 	f.called = true
 	f.gotGuildID = guildID
 	f.gotChannelID = channelID
-	f.gotCreatorID = creatorUserID
+	f.gotProposerID = proposerID
+	f.gotName = name
 	return f.err
 }
 
-func TestChannelHandler_HandleChannelCreate(t *testing.T) {
-	t.Run("正常系: プライベートチャンネルならRestrictorが呼ばれる", func(t *testing.T) {
-		restrictor := &fakeRestrictor{}
-		h := NewChannelHandler(channelUC.New(restrictor))
+func TestChannelHandler_HandleMessage(t *testing.T) {
+	const botID = "bot1"
 
-		ev := IncomingChannelCreate{GuildID: "g1", ChannelID: "c1", CreatorID: "user1", IsPrivate: true}
-		if err := h.HandleChannelCreate(context.Background(), ev); err != nil {
-			t.Fatalf("HandleChannelCreate() unexpected error = %v", err)
+	t.Run("正常系: channel createコマンドでUseCaseへ委譲する（成功時は提案メッセージ自体が通知を兼ねるため追加送信しない）", func(t *testing.T) {
+		uc := &fakeChannelProposeUseCase{}
+		sender := &fakeMessageSender{}
+		h := NewChannelHandler(uc, sender)
+
+		msg := IncomingMessage{
+			GuildID:       "g1",
+			ChannelID:     "c1",
+			AuthorID:      "user1",
+			Content:       "<@bot1> channel create general-chat",
+			MentionsBotID: true,
+			BotID:         botID,
 		}
-		if !restrictor.called {
-			t.Fatal("HandleChannelCreate() should call Restrictor for a private channel")
+		if err := h.HandleMessage(context.Background(), msg); err != nil {
+			t.Fatalf("HandleMessage() unexpected error = %v", err)
 		}
-		if restrictor.gotGuildID != "g1" || restrictor.gotChannelID != "c1" || restrictor.gotCreatorID != "user1" {
-			t.Errorf("Restrictor received guildID=%q channelID=%q creatorID=%q, want g1/c1/user1", restrictor.gotGuildID, restrictor.gotChannelID, restrictor.gotCreatorID)
+		if !uc.called {
+			t.Fatal("HandleMessage() should call UseCase for channel create command")
+		}
+		if uc.gotGuildID != "g1" || uc.gotChannelID != "c1" || uc.gotProposerID != "user1" || uc.gotName != "general-chat" {
+			t.Errorf("UseCase received guildID=%q channelID=%q proposerID=%q name=%q, want g1/c1/user1/general-chat", uc.gotGuildID, uc.gotChannelID, uc.gotProposerID, uc.gotName)
+		}
+		if sender.called {
+			t.Error("HandleMessage() should not send an extra message on success")
 		}
 	})
 
-	t.Run("異常系: プライベートでなければRestrictorは呼ばれない", func(t *testing.T) {
-		restrictor := &fakeRestrictor{}
-		h := NewChannelHandler(channelUC.New(restrictor))
+	t.Run("異常系: channel createコマンドの名前が未指定だと使い方を案内しUseCaseは呼ばれない", func(t *testing.T) {
+		uc := &fakeChannelProposeUseCase{}
+		sender := &fakeMessageSender{}
+		h := NewChannelHandler(uc, sender)
 
-		ev := IncomingChannelCreate{GuildID: "g1", ChannelID: "c1", CreatorID: "user1", IsPrivate: false}
-		if err := h.HandleChannelCreate(context.Background(), ev); err != nil {
-			t.Fatalf("HandleChannelCreate() unexpected error = %v", err)
+		msg := IncomingMessage{
+			GuildID:       "g1",
+			ChannelID:     "c1",
+			Content:       "<@bot1> channel create",
+			MentionsBotID: true,
+			BotID:         botID,
 		}
-		if restrictor.called {
-			t.Error("HandleChannelCreate() should not call Restrictor for a non-private channel")
+		if err := h.HandleMessage(context.Background(), msg); err != nil {
+			t.Fatalf("HandleMessage() unexpected error = %v", err)
+		}
+		if uc.called {
+			t.Error("HandleMessage() should not call UseCase when name is missing")
+		}
+		if !sender.called {
+			t.Fatal("expected a usage message to be sent")
 		}
 	})
 
-	t.Run("異常系: Restrictorのエラーがそのまま返る", func(t *testing.T) {
-		wantErr := errors.New("discord api boom")
-		restrictor := &fakeRestrictor{err: wantErr}
-		h := NewChannelHandler(channelUC.New(restrictor))
+	t.Run("異常系: UseCaseがエラーを返すとエラー内容を通知しエラーは返さない（ユーザー起因の入力ミスのため）", func(t *testing.T) {
+		uc := &fakeChannelProposeUseCase{err: errors.New("channel: name must contain only lowercase letters, numbers, hyphens, and underscores")}
+		sender := &fakeMessageSender{}
+		h := NewChannelHandler(uc, sender)
 
-		ev := IncomingChannelCreate{GuildID: "g1", ChannelID: "c1", CreatorID: "user1", IsPrivate: true}
-		err := h.HandleChannelCreate(context.Background(), ev)
-		if !errors.Is(err, wantErr) {
-			t.Fatalf("HandleChannelCreate() error = %v, want %v", err, wantErr)
+		msg := IncomingMessage{
+			GuildID:       "g1",
+			ChannelID:     "c1",
+			Content:       "<@bot1> channel create Invalid!",
+			MentionsBotID: true,
+			BotID:         botID,
+		}
+		if err := h.HandleMessage(context.Background(), msg); err != nil {
+			t.Fatalf("HandleMessage() unexpected error = %v", err)
+		}
+		if !sender.called {
+			t.Fatal("expected an error message to be sent")
+		}
+	})
+
+	t.Run("異常系: Botへのメンションがなければ何もしない", func(t *testing.T) {
+		uc := &fakeChannelProposeUseCase{}
+		sender := &fakeMessageSender{}
+		h := NewChannelHandler(uc, sender)
+
+		msg := IncomingMessage{
+			GuildID:       "g1",
+			ChannelID:     "c1",
+			Content:       "channel create general-chat",
+			MentionsBotID: false,
+			BotID:         botID,
+		}
+		if err := h.HandleMessage(context.Background(), msg); err != nil {
+			t.Fatalf("HandleMessage() unexpected error = %v", err)
+		}
+		if uc.called {
+			t.Error("HandleMessage() should not call UseCase without a bot mention")
+		}
+	})
+
+	t.Run("異常系: channel以外のコマンドには反応しない", func(t *testing.T) {
+		uc := &fakeChannelProposeUseCase{}
+		sender := &fakeMessageSender{}
+		h := NewChannelHandler(uc, sender)
+
+		msg := IncomingMessage{
+			GuildID:       "g1",
+			ChannelID:     "c1",
+			Content:       "<@bot1> help",
+			MentionsBotID: true,
+			BotID:         botID,
+		}
+		if err := h.HandleMessage(context.Background(), msg); err != nil {
+			t.Fatalf("HandleMessage() unexpected error = %v", err)
+		}
+		if uc.called {
+			t.Error("HandleMessage() should not call UseCase for unrelated commands")
+		}
+		if sender.called {
+			t.Error("HandleMessage() should not send any message for unrelated commands")
 		}
 	})
 }

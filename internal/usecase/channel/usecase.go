@@ -1,27 +1,136 @@
 package channel
 
-import "context"
+import (
+	"context"
+	"fmt"
 
-// UseCase はチャンネル作成時のプライベートチャンネル保護に関するアプリケーションロジック。
-// 一般ユーザーにも自らチャンネルを作れるようManageChannelsを持つロールを付与する運用を前提とするが、
-// この権限はギルド全体の全チャンネルに及ぶため、そのままでは他人が作った既存の非公開チャンネルまで
-// 閲覧・管理できてしまう。新規チャンネル作成イベントを検知しプライベートであれば都度そのチャンネルに
-// 限定してロールのアクセスを剥奪することで、「チャンネル作成はできるが他人の非公開チャンネルは
-// 操作できない」を実現する
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/channel"
+)
+
+// UseCase は一般ユーザーからのコマンドに応じてBotが代理でチャンネルを作成するアプリケーションロジック。
+// 一般ユーザーにManageChannelsロールを付与する運用は、ギルド全体に及ぶ権限のため他人の
+// 非公開チャンネルまで操作できてしまう問題があった（adr/0012, adr/0013参照）。この問題を
+// 構造的に避けるため、チャンネル作成はBot自身の権限で代行する。
+// さらにチャンネルの乱立を防ぐため即時作成はせず、提案メッセージへのリアクションが
+// ギルドごとの必要承認人数（デフォルト2、提案者自身を含む）に達した時点で作成する
+// 投票制フローとする（adr/0014参照）
 type UseCase struct {
-	restrictor Restrictor
+	creator   Creator
+	messenger ProposalMessenger
+	counter   ApprovalCounter
+	proposals ProposalRepository
+	settings  SettingRepository
 }
 
 // New はUseCaseを生成する
-func New(restrictor Restrictor) *UseCase {
-	return &UseCase{restrictor: restrictor}
+func New(creator Creator, messenger ProposalMessenger, counter ApprovalCounter, proposals ProposalRepository, settings SettingRepository) *UseCase {
+	return &UseCase{creator: creator, messenger: messenger, counter: counter, proposals: proposals, settings: settings}
 }
 
-// ProtectIfPrivate はisPrivateがtrueの場合のみ、チャンネル管理ロールのアクセスを剥奪し
-// creatorUserIDのみ操作できる状態にする。プライベートでないチャンネルには何もしない
-func (u *UseCase) ProtectIfPrivate(ctx context.Context, guildID, channelID, creatorUserID string, isPrivate bool) error {
-	if !isPrivate {
+// Propose はnameを検証した上で、channelIDに提案メッセージを送信し、提案を保存する。
+// この時点ではチャンネルはまだ作成しない
+func (u *UseCase) Propose(ctx context.Context, guildID, channelID, proposerID, name string) error {
+	validName, err := channel.NewName(name)
+	if err != nil {
+		return err
+	}
+
+	required, err := u.requiredApprovals(ctx, guildID)
+	if err != nil {
+		return err
+	}
+	content := fmt.Sprintf("#%s を作ろうとしています…\n✅で%d人以上のリアクションが集まると作成が可決されます！", validName.String(), required.Int())
+	messageID, err := u.messenger.SendProposal(ctx, channelID, content)
+	if err != nil {
+		return err
+	}
+
+	return u.proposals.Save(ctx, Proposal{
+		GuildID:     guildID,
+		ChannelID:   channelID,
+		MessageID:   messageID,
+		ChannelName: validName.String(),
+		ProposerID:  proposerID,
+	})
+}
+
+// RecordReaction は提案メッセージへのリアクション追加をきっかけに、現在の承認者数を
+// 数え直し、必要承認人数に達していればチャンネルを作成し提案を解決済みにする。
+// 対象の提案が見つからない、または既に解決済みの場合は何もしない。
+//
+// discordgoはMessageReactionAddイベントをゴルーチンごとに並行dispatchするため、
+// 閾値を超える複数のリアクションがほぼ同時に発生すると、この関数が並行に呼ばれ得る。
+// 「未解決確認 → カウント → 作成」の間に他の呼び出しが割り込んでも二重にチャンネルが
+// 作られないよう、実際にチャンネルを作成する前にTryResolveで解決の権利を先取りし、
+// 権利を得られた（claimed=true）呼び出しだけが作成を行う
+func (u *UseCase) RecordReaction(ctx context.Context, channelID, messageID string) error {
+	proposal, found, err := u.proposals.FindByMessage(ctx, channelID, messageID)
+	if err != nil {
+		return err
+	}
+	if !found || proposal.Resolved {
 		return nil
 	}
-	return u.restrictor.RestrictToCreatorAndAdmins(ctx, guildID, channelID, creatorUserID)
+
+	required, err := u.requiredApprovals(ctx, proposal.GuildID)
+	if err != nil {
+		return err
+	}
+	count, err := u.counter.CountUniqueReactors(ctx, channelID, messageID)
+	if err != nil {
+		return err
+	}
+	if !channel.IsApproved(count, required.Int()) {
+		return nil
+	}
+
+	claimed, err := u.proposals.TryResolve(ctx, channelID, messageID)
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		// 既に他の呼び出しが解決権を得ている（並行実行）ので、この呼び出しは何もしない
+		return nil
+	}
+
+	if err := u.creator.CreateTextChannel(ctx, proposal.GuildID, proposal.ChannelName); err != nil {
+		// チャンネル作成に失敗した場合は解決権を手放し、以降のリアクションイベントで
+		// 再度作成を試みられるようにする
+		if unresolveErr := u.proposals.Unresolve(ctx, channelID, messageID); unresolveErr != nil {
+			return fmt.Errorf("%w (unresolve also failed: %v)", err, unresolveErr)
+		}
+		return err
+	}
+	return nil
+}
+
+// requiredApprovals はguildIDに設定された必要承認人数を返す。未設定の場合はデフォルト値を使う
+func (u *UseCase) requiredApprovals(ctx context.Context, guildID string) (channel.RequiredApprovals, error) {
+	raw, found, err := u.settings.Get(ctx, guildID)
+	if err != nil {
+		return channel.RequiredApprovals{}, err
+	}
+	if !found {
+		return channel.DefaultRequiredApprovals(), nil
+	}
+	return channel.NewRequiredApprovals(raw)
+}
+
+// GetRequiredApprovals は管理画面向けに、guildIDに設定された必要承認人数を返す。
+// 未設定の場合はデフォルト値を返す
+func (u *UseCase) GetRequiredApprovals(ctx context.Context, guildID string) (int, error) {
+	required, err := u.requiredApprovals(ctx, guildID)
+	if err != nil {
+		return 0, err
+	}
+	return required.Int(), nil
+}
+
+// SetRequiredApprovals は管理画面からの入力で、guildIDの必要承認人数を設定する
+func (u *UseCase) SetRequiredApprovals(ctx context.Context, guildID string, requiredApprovals int) error {
+	validated, err := channel.NewRequiredApprovals(requiredApprovals)
+	if err != nil {
+		return err
+	}
+	return u.settings.Set(ctx, guildID, validated.Int())
 }

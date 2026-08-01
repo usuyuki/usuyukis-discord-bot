@@ -66,8 +66,8 @@ func TestHelpHandler_HandleMessage(t *testing.T) {
 				if !strings.Contains(sender.sentContent, "キーワード自動応答") {
 					t.Errorf("HandleMessage() content = %q, want to contain feature list", sender.sentContent)
 				}
-				if !strings.Contains(sender.sentContent, "非公開チャンネル保護") {
-					t.Errorf("HandleMessage() content = %q, want to contain private channel protection feature", sender.sentContent)
+				if !strings.Contains(sender.sentContent, "チャンネル作成") {
+					t.Errorf("HandleMessage() content = %q, want to contain channel create feature", sender.sentContent)
 				}
 				wantTag := mentionTag(tt.msg.BotID)
 				if !strings.Contains(sender.sentContent, wantTag) {
