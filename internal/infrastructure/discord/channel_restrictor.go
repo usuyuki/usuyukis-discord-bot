@@ -2,6 +2,7 @@ package discord
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
@@ -27,24 +28,15 @@ func NewChannelRestrictor(session *discordgo.Session) *ChannelRestrictor {
 // （メンバー単位のオーバーライドはロール単位のオーバーライドより優先されるため、
 // 対象ロールを持つ作成者本人はこの許可により引き続きアクセスできる）。
 // サーバー管理者（Administrator権限保持者）はDiscordの仕様上チャンネル単位の
-// オーバーライドを常にバイパスするため、明示的な許可設定は不要
+// オーバーライドを常にバイパスするため、明示的な許可設定は不要。
+//
+// 作成者への許可はロール制限より先に設定する。ロール制限側は一部のロールで
+// APIエラーが起きても残りのロールの処理を続行し、最後にまとめてエラーを返す
+// （途中で打ち切ると、以降のロールが無制限アクセスのまま放置されてしまうため）
 func (r *ChannelRestrictor) RestrictToCreatorAndAdmins(ctx context.Context, guildID, channelID, creatorUserID string) error {
-	guild, err := r.session.State.Guild(guildID)
+	guild, err := resolveGuild(r.session, guildID)
 	if err != nil {
-		guild, err = r.session.Guild(guildID)
-		if err != nil {
-			return fmt.Errorf("discord: failed to fetch guild %s: %w", guildID, err)
-		}
-	}
-
-	const deny = discordgo.PermissionViewChannel | discordgo.PermissionManageChannels
-	for _, role := range guild.Roles {
-		if !channel.IsChannelManagerRole(role.Permissions) {
-			continue
-		}
-		if err := r.session.ChannelPermissionSet(channelID, role.ID, discordgo.PermissionOverwriteTypeRole, 0, deny); err != nil {
-			return fmt.Errorf("discord: failed to restrict role %s on channel %s: %w", role.ID, channelID, err)
-		}
+		return fmt.Errorf("discord: failed to fetch guild %s: %w", guildID, err)
 	}
 
 	if creatorUserID != "" {
@@ -54,5 +46,43 @@ func (r *ChannelRestrictor) RestrictToCreatorAndAdmins(ctx context.Context, guil
 		}
 	}
 
-	return nil
+	existingAllow := existingRoleAllowBits(r.session, channelID)
+
+	const deny = discordgo.PermissionViewChannel | discordgo.PermissionManageChannels
+	var errs []error
+	for _, role := range guild.Roles {
+		if !channel.IsChannelManagerRole(role.Permissions) {
+			continue
+		}
+		// 既存のオーバーライド（カテゴリからの同期分など）が持つallowビットのうち
+		// denyと衝突しないものは維持する。ChannelPermissionSetはPUTで全置換のため、
+		// 維持したいallowビットも明示的に渡す必要がある
+		allow := existingAllow[role.ID] &^ deny
+		if err := r.session.ChannelPermissionSet(channelID, role.ID, discordgo.PermissionOverwriteTypeRole, allow, deny); err != nil {
+			errs = append(errs, fmt.Errorf("discord: failed to restrict role %s on channel %s: %w", role.ID, channelID, err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+// existingRoleAllowBits はchannelIDに現在設定されているロール単位のオーバーライドから
+// ロールID毎のAllowビットを取得する。取得に失敗した場合はnilを返し、
+// 呼び出し元は既存の許可ビットなしとして扱う（安全側、後続のdeny設定は継続される）
+func existingRoleAllowBits(s *discordgo.Session, channelID string) map[string]int64 {
+	ch, err := s.State.Channel(channelID)
+	if err != nil {
+		ch, err = s.Channel(channelID)
+		if err != nil {
+			return nil
+		}
+	}
+	result := make(map[string]int64, len(ch.PermissionOverwrites))
+	for _, ow := range ch.PermissionOverwrites {
+		if ow.Type != discordgo.PermissionOverwriteTypeRole {
+			continue
+		}
+		result[ow.ID] = ow.Allow
+	}
+	return result
 }

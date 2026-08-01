@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 
@@ -14,6 +15,16 @@ import (
 // AdminPermissionChecker はギルドメンバーが管理者権限を持つかどうかを判定する関数
 type AdminPermissionChecker func(s *discordgo.Session, guildID, userID string) (bool, error)
 
+// resolveGuild はState経由でギルド情報を取得し、State未キャッシュならREST APIへ
+// フォールバックする。チャンネル制限・管理者判定など複数箇所で必要となる共通処理
+func resolveGuild(s *discordgo.Session, guildID string) (*discordgo.Guild, error) {
+	guild, err := s.State.Guild(guildID)
+	if err != nil {
+		return s.Guild(guildID)
+	}
+	return guild, nil
+}
+
 // DefaultAdminPermissionChecker はGuildのOwnerIDおよびMemberのロールから
 // Administrator権限の有無を判定する。
 // discordgo.Session.UserChannelPermissionsはチャンネル単位の実効権限を計算する
@@ -21,12 +32,9 @@ type AdminPermissionChecker func(s *discordgo.Session, guildID, userID string) (
 // このチェックはチャンネルに依存しないギルド全体の管理者権限を見たいので、
 // Guild/Member情報から直接権限ビットを集約する
 func DefaultAdminPermissionChecker(s *discordgo.Session, guildID, userID string) (bool, error) {
-	guild, err := s.State.Guild(guildID)
+	guild, err := resolveGuild(s, guildID)
 	if err != nil {
-		guild, err = s.Guild(guildID)
-		if err != nil {
-			return false, err
-		}
+		return false, err
 	}
 	if guild.OwnerID == userID {
 		return true, nil
@@ -194,12 +202,33 @@ func convertRoleOverwrites(overwrites []*discordgo.PermissionOverwrite) []channe
 	return result
 }
 
+// auditLogChannelCreateLimit は監査ログから取得するCHANNEL_CREATEエントリの件数。
+// Discord APIの上限(100)に近い値を指定し、短時間に多数のチャンネルが連続作成されても
+// 該当エントリが取得ウィンドウの外に押し出されにくくする
+const auditLogChannelCreateLimit = 100
+
+// auditLogRetryDelay は監査ログの反映ラグを吸収するための1回限りのリトライ待機時間
+const auditLogRetryDelay = 500 * time.Millisecond
+
 // resolveChannelCreator は監査ログから直近のCHANNEL_CREATEエントリを検索し、
 // channelIDに一致するものがあれば作成者のユーザーIDを返す。監査ログの反映には若干の
-// タイムラグがあるほか、取得自体に失敗するケースもあり得るため、その場合は空文字を返す。
-// 作成者が解決できなくてもチャンネル管理ロールの剥奪自体は行われるため、安全側に倒れる
+// タイムラグがあるため、1回目で見つからなければ短い待機を挟んで1回だけ再試行する。
+// 取得自体に失敗するケースもあり得るため、その場合は空文字を返す。
+// 作成者が解決できない場合、呼び出し元はロール剥奪自体は行いつつ作成者への明示的な
+// 許可は設定できないため、作成者が締め出されるリスクがある（利用可能な情報の範囲で
+// できる限りラグを吸収した上での安全側フォールバック）
 func resolveChannelCreator(s *discordgo.Session, guildID, channelID string) string {
-	auditLog, err := s.GuildAuditLog(guildID, "", "", int(discordgo.AuditLogActionChannelCreate), 10)
+	if userID := lookupChannelCreatorFromAuditLog(s, guildID, channelID); userID != "" {
+		return userID
+	}
+	time.Sleep(auditLogRetryDelay)
+	return lookupChannelCreatorFromAuditLog(s, guildID, channelID)
+}
+
+// lookupChannelCreatorFromAuditLog は監査ログを1回だけ問い合わせ、channelIDに
+// 一致するCHANNEL_CREATEエントリのユーザーIDを返す。見つからない/取得失敗時は空文字を返す
+func lookupChannelCreatorFromAuditLog(s *discordgo.Session, guildID, channelID string) string {
+	auditLog, err := s.GuildAuditLog(guildID, "", "", int(discordgo.AuditLogActionChannelCreate), auditLogChannelCreateLimit)
 	if err != nil {
 		return ""
 	}
