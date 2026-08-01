@@ -2,6 +2,7 @@ package discord
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
@@ -12,6 +13,25 @@ import (
 
 // AdminPermissionChecker はギルドメンバーが管理者権限を持つかどうかを判定する関数
 type AdminPermissionChecker func(s *discordgo.Session, guildID, userID string) (bool, error)
+
+// detectsMentionsBot はmentionUserIDsに構造化メンションとしてbotIDが含まれるか、
+// もしくはcontentの先頭単語が"@"を除いてbotNameに一致するかを判定する。
+// 後者は過去メッセージのコピペ等で構造化メンションが失われ地の文の"@botName"表記に
+// なってしまった場合の救済措置で、誤爆を避けるため先頭単語との一致のみ許容する
+func detectsMentionsBot(mentionUserIDs []string, content, botID, botName string) bool {
+	if botID != "" {
+		for _, id := range mentionUserIDs {
+			if id == botID {
+				return true
+			}
+		}
+	}
+	if botName == "" {
+		return false
+	}
+	fields := strings.Fields(content)
+	return len(fields) > 0 && strings.EqualFold(strings.TrimPrefix(fields[0], "@"), botName)
+}
 
 // resolveGuild はState経由でギルド情報を取得し、State未キャッシュならREST APIへ
 // フォールバックする。チャンネル制限・管理者判定など複数箇所で必要となる共通処理
@@ -72,13 +92,18 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		if m.Author == nil || m.Author.Bot {
 			return
 		}
-		mentionsBot := false
-		for _, u := range m.Mentions {
-			if s.State.User != nil && u.ID == s.State.User.ID {
-				mentionsBot = true
-				break
-			}
+		botID := ""
+		botName := ""
+		if s.State.User != nil {
+			botID = s.State.User.ID
+			botName = s.State.User.Username
 		}
+
+		mentions := make([]string, 0, len(m.Mentions))
+		for _, u := range m.Mentions {
+			mentions = append(mentions, u.ID)
+		}
+		mentionsBot := detectsMentionsBot(mentions, m.Content, botID, botName)
 
 		isAdmin := false
 		if m.GuildID != "" {
@@ -86,13 +111,6 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 			if err == nil {
 				isAdmin = ok
 			}
-		}
-
-		botID := ""
-		botName := ""
-		if s.State.User != nil {
-			botID = s.State.User.ID
-			botName = s.State.User.Username
 		}
 
 		router.DispatchMessage(context.Background(), discordbot.IncomingMessage{

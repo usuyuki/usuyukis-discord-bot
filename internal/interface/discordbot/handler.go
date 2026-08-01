@@ -3,6 +3,7 @@ package discordbot
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
 )
@@ -33,11 +34,15 @@ func mentionTag(botID string) string {
 }
 
 // stripMentionTokens はスペース区切りのフィールド列から、指定したbotIDの構造化メンション
-// （"<@botID>"）にちょうど一致するフィールドのみを除去したフィールド列を返す。
+// （"<@botID>"）にちょうど一致するフィールドを全て除去し、さらに先頭フィールドがbotName
+// （大文字小文字を無視）にちょうど一致する場合はそれも除去したフィールド列を返す。
 // "<@...>"の形を持つ全フィールドを対象にすると、キーワードの値として渡された
 // リテラルな"<@notanid>"のような引数まで誤って除去してしまうため、実際のBotメンションのみに絞る。
+// 後者は、過去メッセージのコピペ等で構造化メンションではなく地の文の"@botName"表記に
+// なってしまった場合でもコマンドとして認識できるようにするための救済措置（先頭のみ対象にし、
+// 文中に偶然botNameと同じ単語が現れても誤除去しないようにする）。
 // keyword/helpなど、メンションに続くコマンド本体を解析する各ハンドラで共通して使う
-func stripMentionTokens(fields []string, botID string) []string {
+func stripMentionTokens(fields []string, botID, botName string) []string {
 	tag := mentionTag(botID)
 	filtered := make([]string, 0, len(fields))
 	for _, f := range fields {
@@ -45,6 +50,12 @@ func stripMentionTokens(fields []string, botID string) []string {
 			continue
 		}
 		filtered = append(filtered, f)
+	}
+	if botName != "" && len(filtered) > 0 {
+		first := strings.TrimPrefix(filtered[0], "@")
+		if strings.EqualFold(first, botName) {
+			filtered = filtered[1:]
+		}
 	}
 	return filtered
 }

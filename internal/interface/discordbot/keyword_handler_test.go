@@ -289,6 +289,7 @@ func TestParseKeywordCommand(t *testing.T) {
 	tests := []struct {
 		name    string
 		content string
+		botName string
 		want    *keywordCommand
 	}{
 		{
@@ -332,7 +333,7 @@ func TestParseKeywordCommand(t *testing.T) {
 			want:    nil,
 		},
 		{
-			name:    "異常系: テキストの@メンション風表記は構造化メンションでないため除去されず、keyword以外の先頭語としてnilを返す",
+			name:    "異常系: テキストの@メンション風表記でもbotNameが未指定なら除去されず、keyword以外の先頭語としてnilを返す",
 			content: "@bot keyword add ぬるぽ ガッ",
 			want:    nil,
 		},
@@ -346,10 +347,16 @@ func TestParseKeywordCommand(t *testing.T) {
 			content: "<@bot> keyword add <@notanid> ガッ",
 			want:    &keywordCommand{Sub: "add", Word: "<@notanid>", Response: "ガッ"},
 		},
+		{
+			name:    "正常系: 構造化メンションでなく地の文の@botName表記でもkeywordコマンドを認識する（コピペ救済）",
+			content: "@usuyuki keyword add ぬるぽ ガッ",
+			botName: "usuyuki",
+			want:    &keywordCommand{Sub: "add", Word: "ぬるぽ", Response: "ガッ"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseKeywordCommand(tt.content, "bot")
+			got := parseKeywordCommand(tt.content, "bot", tt.botName)
 			if (got == nil) != (tt.want == nil) {
 				t.Fatalf("parseKeywordCommand(%q) = %+v, want %+v", tt.content, got, tt.want)
 			}

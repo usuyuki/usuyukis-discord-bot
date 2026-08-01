@@ -24,6 +24,73 @@ func newTestSession(t *testing.T, guildID, ownerID string, roles []*discordgo.Ro
 	return &discordgo.Session{State: state}
 }
 
+func TestDetectsMentionsBot(t *testing.T) {
+	tests := []struct {
+		name           string
+		mentionUserIDs []string
+		content        string
+		botID          string
+		botName        string
+		want           bool
+	}{
+		{
+			name:           "正常系: 構造化メンションのIDが一致すれば真",
+			mentionUserIDs: []string{"bot1"},
+			content:        "<@bot1> help",
+			botID:          "bot1",
+			botName:        "usuyuki",
+			want:           true,
+		},
+		{
+			name:           "異常系: メンションもbotName一致もなければ偽",
+			mentionUserIDs: []string{"user1"},
+			content:        "hello",
+			botID:          "bot1",
+			botName:        "usuyuki",
+			want:           false,
+		},
+		{
+			name:           "正常系: 構造化メンションが失われた地の文の@botName表記でも真になる（コピペ救済）",
+			mentionUserIDs: nil,
+			content:        "@usuyuki help",
+			botID:          "bot1",
+			botName:        "usuyuki",
+			want:           true,
+		},
+		{
+			name:           "正常系: 地の文@botName表記は大文字小文字を無視する",
+			mentionUserIDs: nil,
+			content:        "@Usuyuki help",
+			botID:          "bot1",
+			botName:        "usuyuki",
+			want:           true,
+		},
+		{
+			name:           "異常系: botNameが文中（先頭以外）に現れても偽",
+			mentionUserIDs: nil,
+			content:        "help @usuyuki",
+			botID:          "bot1",
+			botName:        "usuyuki",
+			want:           false,
+		},
+		{
+			name:           "異常系: botNameが空文字（State.User未同期）なら地の文判定は行わない",
+			mentionUserIDs: nil,
+			content:        "@usuyuki help",
+			botID:          "bot1",
+			botName:        "",
+			want:           false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := detectsMentionsBot(tt.mentionUserIDs, tt.content, tt.botID, tt.botName); got != tt.want {
+				t.Errorf("detectsMentionsBot(%v, %q, %q, %q) = %v, want %v", tt.mentionUserIDs, tt.content, tt.botID, tt.botName, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDefaultAdminPermissionChecker(t *testing.T) {
 	const guildID = "g1"
 	everyoneRole := &discordgo.Role{ID: guildID, Permissions: 0}

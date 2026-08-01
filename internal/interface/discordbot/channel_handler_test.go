@@ -118,6 +118,31 @@ func TestChannelHandler_HandleMessage(t *testing.T) {
 		}
 	})
 
+	t.Run("正常系: 構造化メンションでなく地の文の@botName表記でもchannel createコマンドを認識する（コピペ救済）", func(t *testing.T) {
+		uc := &fakeChannelProposeUseCase{}
+		sender := &fakeMessageSender{}
+		h := NewChannelHandler(uc, sender)
+
+		msg := IncomingMessage{
+			GuildID:       "g1",
+			ChannelID:     "c1",
+			AuthorID:      "user1",
+			Content:       "@usuyuki channel create general-chat",
+			MentionsBotID: true,
+			BotID:         botID,
+			BotName:       "usuyuki",
+		}
+		if err := h.HandleMessage(context.Background(), msg); err != nil {
+			t.Fatalf("HandleMessage() unexpected error = %v", err)
+		}
+		if !uc.called {
+			t.Fatal("HandleMessage() should call UseCase for channel create command via botName fallback")
+		}
+		if uc.gotName != "general-chat" {
+			t.Errorf("UseCase received name=%q, want general-chat", uc.gotName)
+		}
+	})
+
 	t.Run("異常系: channel以外のコマンドには反応しない", func(t *testing.T) {
 		uc := &fakeChannelProposeUseCase{}
 		sender := &fakeMessageSender{}
