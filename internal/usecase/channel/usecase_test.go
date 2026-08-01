@@ -47,15 +47,21 @@ func (f *fakeCounter) CountUniqueReactors(ctx context.Context, channelID, messag
 	return f.count, f.err
 }
 
-// fakeProposalRepo はテスト用のProposalRepositoryフェイク実装（インメモリ）
+// fakeProposalRepo はテスト用のProposalRepositoryフェイク実装（インメモリ）。
+// TryResolveは実際のpostgres実装同様、resolvedがまだfalseの場合にのみtrueへ遷移させ
+// claimed=trueを返すことで、二重解決防止のロジックをフェイク上でも再現する
 type fakeProposalRepo struct {
-	saved      []Proposal
-	resolved   map[string]bool
-	findResult Proposal
-	findFound  bool
-	findErr    error
-	saveErr    error
-	resolveErr error
+	saved        []Proposal
+	resolved     map[string]bool
+	findResult   Proposal
+	findFound    bool
+	findErr      error
+	saveErr      error
+	resolveErr   error
+	unresolveErr error
+	// alreadyResolvedOnClaim はTryResolve呼び出し時点で強制的にclaimedをfalseにする
+	// （並行して他の呼び出しが先に解決済みにした状況を再現するためのテスト用フラグ）
+	alreadyResolvedOnClaim bool
 }
 
 func newFakeProposalRepo() *fakeProposalRepo {
@@ -77,11 +83,23 @@ func (f *fakeProposalRepo) FindByMessage(ctx context.Context, channelID, message
 	return f.findResult, f.findFound, nil
 }
 
-func (f *fakeProposalRepo) MarkResolved(ctx context.Context, channelID, messageID string) error {
+func (f *fakeProposalRepo) TryResolve(ctx context.Context, channelID, messageID string) (bool, error) {
 	if f.resolveErr != nil {
-		return f.resolveErr
+		return false, f.resolveErr
 	}
-	f.resolved[channelID+"/"+messageID] = true
+	key := channelID + "/" + messageID
+	if f.alreadyResolvedOnClaim || f.resolved[key] {
+		return false, nil
+	}
+	f.resolved[key] = true
+	return true, nil
+}
+
+func (f *fakeProposalRepo) Unresolve(ctx context.Context, channelID, messageID string) error {
+	if f.unresolveErr != nil {
+		return f.unresolveErr
+	}
+	f.resolved[channelID+"/"+messageID] = false
 	return nil
 }
 
@@ -239,7 +257,7 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		}
 	})
 
-	t.Run("異常系: Creatorがエラーを返すとRecordReactionもエラーを返す", func(t *testing.T) {
+	t.Run("異常系: Creatorがエラーを返すとRecordReactionもエラーを返し、提案は未解決に戻る", func(t *testing.T) {
 		wantErr := errors.New("boom")
 		creator := &fakeCreator{err: wantErr}
 		repo := newFakeProposalRepo()
@@ -251,6 +269,26 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		err := u.RecordReaction(context.Background(), "c1", "msg1")
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("RecordReaction() error = %v, want %v", err, wantErr)
+		}
+		if repo.resolved["c1/msg1"] {
+			t.Error("RecordReaction() should unresolve the proposal when channel creation fails, so a later reaction can retry")
+		}
+	})
+
+	t.Run("異常系: 閾値到達と同時に他の呼び出しが先に解決権を得ていた場合はチャンネルを作成しない（二重作成防止）", func(t *testing.T) {
+		creator := &fakeCreator{}
+		repo := newFakeProposalRepo()
+		repo.findResult = Proposal{GuildID: "g1", ChannelID: "c1", MessageID: "msg1", ChannelName: "general-chat", ProposerID: "user1"}
+		repo.findFound = true
+		repo.alreadyResolvedOnClaim = true
+		counter := &fakeCounter{count: 2}
+		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, &fakeSettingRepo{required: 2, found: true})
+
+		if err := u.RecordReaction(context.Background(), "c1", "msg1"); err != nil {
+			t.Fatalf("RecordReaction() unexpected error = %v", err)
+		}
+		if creator.called {
+			t.Error("RecordReaction() should not create the channel when TryResolve loses the race (claimed=false)")
 		}
 	})
 }

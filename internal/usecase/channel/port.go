@@ -24,7 +24,16 @@ type ApprovalCounter interface {
 type ProposalRepository interface {
 	Save(ctx context.Context, p Proposal) error
 	FindByMessage(ctx context.Context, channelID, messageID string) (Proposal, bool, error)
-	MarkResolved(ctx context.Context, channelID, messageID string) error
+	// TryResolve はchannelID/messageIDに一致する未解決の提案を解決済みにする。
+	// 「resolved = false の行を解決済みにする」更新自体をDBの原子的な操作として行い、
+	// 実際にこの呼び出しで解決済みへの遷移を行えた場合にのみclaimedがtrueになる。
+	// 複数のリアクションイベントがほぼ同時に閾値を超えた場合でも、この更新に
+	// 成功できるのは1回だけであることを保証し、チャンネルの二重作成を防ぐ
+	TryResolve(ctx context.Context, channelID, messageID string) (claimed bool, err error)
+	// Unresolve はTryResolveで確保した解決権を手放し、提案を未解決に戻す。
+	// TryResolve成功後にチャンネル作成そのものが失敗した場合に、以降のリアクション
+	// イベントで再度作成を試みられるようにするために使う
+	Unresolve(ctx context.Context, channelID, messageID string) error
 }
 
 // Proposal はチャンネル作成提案の永続化用データ

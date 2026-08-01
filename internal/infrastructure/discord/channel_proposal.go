@@ -34,6 +34,12 @@ func (m *ChannelProposalMessenger) SendProposal(ctx context.Context, channelID, 
 		return "", fmt.Errorf("discord: failed to send channel proposal: %w", err)
 	}
 	if err := m.session.MessageReactionAdd(channelID, msg.ID, proposalApprovalEmoji); err != nil {
+		// ここで提案をDBに保存せずエラーを返すと、送信済みメッセージだけが残り
+		// 誰にも反応されない孤立した提案になってしまう。呼び出し元へエラーを返す前に
+		// メッセージ自体を削除し、送信の失敗として扱えるようにする
+		if delErr := m.session.ChannelMessageDelete(channelID, msg.ID); delErr != nil {
+			return "", fmt.Errorf("discord: failed to add initial reaction to proposal %s: %w (cleanup also failed: %v)", msg.ID, err, delErr)
+		}
 		return "", fmt.Errorf("discord: failed to add initial reaction to proposal %s: %w", msg.ID, err)
 	}
 	return msg.ID, nil
@@ -66,15 +72,26 @@ func (c *ChannelApprovalCounter) CountUniqueReactors(ctx context.Context, channe
 
 	uniqueUsers := map[string]bool{}
 	for _, reaction := range msg.Reactions {
-		users, err := c.session.MessageReactions(channelID, messageID, reaction.Emoji.APIName(), reactionUsersLimit, "", "")
-		if err != nil {
-			return 0, fmt.Errorf("discord: failed to fetch reactors for proposal %s: %w", messageID, err)
-		}
-		for _, u := range users {
-			if u.ID == botID {
-				continue
+		// 1回のMessageReactions呼び出しでは最大reactionUsersLimit件しか取得できないため、
+		// 1つの絵文字に100人を超えるリアクションが付いた場合でも全員を数えられるよう、
+		// 最後に取得したユーザーIDをafterカーソルにして取得件数が上限未満になるまで
+		// ページネーションする
+		after := ""
+		for {
+			users, err := c.session.MessageReactions(channelID, messageID, reaction.Emoji.APIName(), reactionUsersLimit, "", after)
+			if err != nil {
+				return 0, fmt.Errorf("discord: failed to fetch reactors for proposal %s: %w", messageID, err)
 			}
-			uniqueUsers[u.ID] = true
+			for _, u := range users {
+				if u.ID == botID {
+					continue
+				}
+				uniqueUsers[u.ID] = true
+			}
+			if len(users) < reactionUsersLimit {
+				break
+			}
+			after = users[len(users)-1].ID
 		}
 	}
 	return len(uniqueUsers), nil

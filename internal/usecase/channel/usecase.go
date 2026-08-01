@@ -56,7 +56,13 @@ func (u *UseCase) Propose(ctx context.Context, guildID, channelID, proposerID, n
 
 // RecordReaction は提案メッセージへのリアクション追加をきっかけに、現在の承認者数を
 // 数え直し、必要承認人数に達していればチャンネルを作成し提案を解決済みにする。
-// 対象の提案が見つからない、または既に解決済みの場合は何もしない
+// 対象の提案が見つからない、または既に解決済みの場合は何もしない。
+//
+// discordgoはMessageReactionAddイベントをゴルーチンごとに並行dispatchするため、
+// 閾値を超える複数のリアクションがほぼ同時に発生すると、この関数が並行に呼ばれ得る。
+// 「未解決確認 → カウント → 作成」の間に他の呼び出しが割り込んでも二重にチャンネルが
+// 作られないよう、実際にチャンネルを作成する前にTryResolveで解決の権利を先取りし、
+// 権利を得られた（claimed=true）呼び出しだけが作成を行う
 func (u *UseCase) RecordReaction(ctx context.Context, channelID, messageID string) error {
 	proposal, found, err := u.proposals.FindByMessage(ctx, channelID, messageID)
 	if err != nil {
@@ -78,10 +84,24 @@ func (u *UseCase) RecordReaction(ctx context.Context, channelID, messageID strin
 		return nil
 	}
 
-	if err := u.creator.CreateTextChannel(ctx, proposal.GuildID, proposal.ChannelName); err != nil {
+	claimed, err := u.proposals.TryResolve(ctx, channelID, messageID)
+	if err != nil {
 		return err
 	}
-	return u.proposals.MarkResolved(ctx, channelID, messageID)
+	if !claimed {
+		// 既に他の呼び出しが解決権を得ている（並行実行）ので、この呼び出しは何もしない
+		return nil
+	}
+
+	if err := u.creator.CreateTextChannel(ctx, proposal.GuildID, proposal.ChannelName); err != nil {
+		// チャンネル作成に失敗した場合は解決権を手放し、以降のリアクションイベントで
+		// 再度作成を試みられるようにする
+		if unresolveErr := u.proposals.Unresolve(ctx, channelID, messageID); unresolveErr != nil {
+			return fmt.Errorf("%w (unresolve also failed: %v)", err, unresolveErr)
+		}
+		return err
+	}
+	return nil
 }
 
 // requiredApprovals はguildIDに設定された必要承認人数を返す。未設定の場合はデフォルト値を使う

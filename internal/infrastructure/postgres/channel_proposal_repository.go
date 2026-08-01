@@ -52,11 +52,24 @@ func (r *ChannelProposalRepository) FindByMessage(ctx context.Context, channelID
 	return p, true, nil
 }
 
-// MarkResolved はchannelID/messageIDに一致する提案を解決済みにする
-func (r *ChannelProposalRepository) MarkResolved(ctx context.Context, channelID, messageID string) error {
-	const query = `UPDATE channel_create_proposals SET resolved = true WHERE channel_id = $1 AND message_id = $2`
+// TryResolve はchannelID/messageIDに一致する未解決の提案を解決済みにする。
+// WHERE句にresolved = falseを含めることで「まだ未解決の行を解決済みにする」更新自体を
+// 1回のUPDATE文として原子的に行い、更新できた行数（0 or 1）からclaimedを判定する。
+// これにより並行に呼ばれても解決の権利をどちらか一方にしか渡さないことを保証する
+func (r *ChannelProposalRepository) TryResolve(ctx context.Context, channelID, messageID string) (bool, error) {
+	const query = `UPDATE channel_create_proposals SET resolved = true WHERE channel_id = $1 AND message_id = $2 AND resolved = false`
+	tag, err := r.pool.Exec(ctx, query, channelID, messageID)
+	if err != nil {
+		return false, fmt.Errorf("postgres: failed to mark channel proposal resolved: %w", err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// Unresolve はTryResolveで解決済みにした提案を未解決に戻す
+func (r *ChannelProposalRepository) Unresolve(ctx context.Context, channelID, messageID string) error {
+	const query = `UPDATE channel_create_proposals SET resolved = false WHERE channel_id = $1 AND message_id = $2`
 	if _, err := r.pool.Exec(ctx, query, channelID, messageID); err != nil {
-		return fmt.Errorf("postgres: failed to mark channel proposal resolved: %w", err)
+		return fmt.Errorf("postgres: failed to unresolve channel proposal: %w", err)
 	}
 	return nil
 }
