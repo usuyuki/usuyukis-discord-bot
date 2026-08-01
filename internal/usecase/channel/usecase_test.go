@@ -8,17 +8,21 @@ import (
 
 // fakeCreator はテスト用のCreatorフェイク実装
 type fakeCreator struct {
-	called     bool
-	gotGuildID string
-	gotName    string
-	err        error
+	called           bool
+	gotGuildID       string
+	gotName          string
+	returnChannelRef string
+	err              error
 }
 
-func (f *fakeCreator) CreateTextChannel(ctx context.Context, guildID, name string) error {
+func (f *fakeCreator) CreateTextChannel(ctx context.Context, guildID, name string) (string, error) {
 	f.called = true
 	f.gotGuildID = guildID
 	f.gotName = name
-	return f.err
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.returnChannelRef, nil
 }
 
 // fakeMessenger はテスト用のProposalMessengerフェイク実装
@@ -203,7 +207,7 @@ func TestUseCase_RecordReaction(t *testing.T) {
 	})
 
 	t.Run("正常系: 承認数が必要数に達するとチャンネルを作成し提案を解決済みにする", func(t *testing.T) {
-		creator := &fakeCreator{}
+		creator := &fakeCreator{returnChannelRef: "<#new-channel-id>"}
 		repo := newFakeProposalRepo()
 		repo.findResult = Proposal{GuildID: "g1", ChannelID: "c1", MessageID: "msg1", ChannelName: "general-chat", ProposerID: "user1"}
 		repo.findFound = true
@@ -227,14 +231,16 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		if !notifier.called {
 			t.Fatal("RecordReaction() should notify the proposal channel that the channel was created")
 		}
-		if notifier.gotChannelID != "c1" || notifier.gotContent != "#general-chat を作成したよ！" {
-			t.Errorf("Notifier received channelID=%q content=%q, want c1/%q", notifier.gotChannelID, notifier.gotContent, "#general-chat を作成したよ！")
+		// メンション形式（<#channelID>）への組み立てはinfrastructure層の責務なので、
+		// usecase層のテストではCreatorから返された参照文字列をそのまま埋め込むことだけを確認する
+		if notifier.gotChannelID != "c1" || notifier.gotContent != "<#new-channel-id> を作成したよ！" {
+			t.Errorf("Notifier received channelID=%q content=%q, want c1/%q", notifier.gotChannelID, notifier.gotContent, "<#new-channel-id> を作成したよ！")
 		}
 	})
 
 	t.Run("異常系: チャンネル作成は成功したがNotifierがエラーを返すとErrNotifyCreatedFailedでラップして返し、提案は解決済みのままにする", func(t *testing.T) {
 		wantErr := errors.New("discord api down")
-		creator := &fakeCreator{}
+		creator := &fakeCreator{returnChannelRef: "<#new-channel-id>"}
 		repo := newFakeProposalRepo()
 		repo.findResult = Proposal{GuildID: "g1", ChannelID: "c1", MessageID: "msg1", ChannelName: "general-chat", ProposerID: "user1"}
 		repo.findFound = true
@@ -258,7 +264,7 @@ func TestUseCase_RecordReaction(t *testing.T) {
 	})
 
 	t.Run("正常系: 必要承認人数がギルド未設定ならデフォルト値(2)が使われる", func(t *testing.T) {
-		creator := &fakeCreator{}
+		creator := &fakeCreator{returnChannelRef: "<#new-channel-id>"}
 		repo := newFakeProposalRepo()
 		repo.findResult = Proposal{GuildID: "g1", ChannelID: "c1", MessageID: "msg1", ChannelName: "general-chat", ProposerID: "user1"}
 		repo.findFound = true
@@ -323,6 +329,23 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		}
 		if notifier.called {
 			t.Error("RecordReaction() should not notify when channel creation fails")
+		}
+	})
+
+	t.Run("異常系: Creatorがerr=nilで空のchannelRefを返すと壊れた通知を送らずエラーを返す", func(t *testing.T) {
+		creator := &fakeCreator{returnChannelRef: ""}
+		repo := newFakeProposalRepo()
+		repo.findResult = Proposal{GuildID: "g1", ChannelID: "c1", MessageID: "msg1", ChannelName: "general-chat", ProposerID: "user1"}
+		repo.findFound = true
+		counter := &fakeCounter{count: 2}
+		notifier := &fakeNotifier{}
+		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, &fakeSettingRepo{required: 2, found: true}, notifier)
+
+		if err := u.RecordReaction(context.Background(), "c1", "msg1"); err == nil {
+			t.Fatal("RecordReaction() should return an error when the creator returns an empty channelRef")
+		}
+		if notifier.called {
+			t.Error("RecordReaction() should not notify when the creator returned an empty channelRef")
 		}
 	})
 

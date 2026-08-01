@@ -99,7 +99,8 @@ func (u *UseCase) RecordReaction(ctx context.Context, channelID, messageID strin
 		return nil
 	}
 
-	if err := u.creator.CreateTextChannel(ctx, proposal.GuildID, proposal.ChannelName); err != nil {
+	createdChannelRef, err := u.creator.CreateTextChannel(ctx, proposal.GuildID, proposal.ChannelName)
+	if err != nil {
 		// チャンネル作成に失敗した場合は解決権を手放し、以降のリアクションイベントで
 		// 再度作成を試みられるようにする
 		if unresolveErr := u.proposals.Unresolve(ctx, channelID, messageID); unresolveErr != nil {
@@ -107,12 +108,18 @@ func (u *UseCase) RecordReaction(ctx context.Context, channelID, messageID strin
 		}
 		return err
 	}
+	if createdChannelRef == "" {
+		// Creator portの実装はerrがnilならchannelRefが非空であることを前提としているが、
+		// 万一違反した場合に壊れた通知文を送ってしまわないよう防御する
+		return fmt.Errorf("channel: creator returned empty channelRef for guild %s", proposal.GuildID)
+	}
 
 	// この時点でチャンネル作成・提案の解決は既に確定している。通知はベストエフォートの
 	// 後続処理であり、ここで失敗してもチャンネル作成自体をやり直す必要はない
 	// （resolvedを戻すと同名チャンネルの二重作成につながる）ため、Unresolveはしない。
-	// 呼び出し元がチャンネル作成の失敗と誤認しないよう、専用エラーでラップして区別できるようにする
-	content := fmt.Sprintf("#%s を作成したよ！", proposal.ChannelName)
+	// 呼び出し元がチャンネル作成の失敗と誤認しないよう、専用エラーでラップして区別できるようにする。
+	// createdChannelRefの表現形式（Discordのメンション記法等）はinfrastructure層が決定する
+	content := fmt.Sprintf("%s を作成したよ！", createdChannelRef)
 	if err := u.notifier.SendMessage(ctx, channelID, content); err != nil {
 		return fmt.Errorf("%w: %w", ErrNotifyCreatedFailed, err)
 	}
