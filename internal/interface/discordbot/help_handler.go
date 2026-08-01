@@ -18,7 +18,7 @@ func NewHelpHandler(sender MessageSender) *HelpHandler {
 
 // HandleMessage はBotへのメンションに続く本文が"help"または"usage"の場合、機能一覧を返信する
 func (h *HelpHandler) HandleMessage(ctx context.Context, msg IncomingMessage) error {
-	if !msg.MentionsBotID || !isHelpCommand(msg.Content, msg.BotID, msg.BotName) {
+	if !msg.MentionsBotID || !isHelpCommand(msg.Content, msg.BotID, msg.BotMentionNames) {
 		return nil
 	}
 	return h.sender.SendMessage(ctx, msg.ChannelID, helpMessage(msg.BotID, msg.BotName))
@@ -26,8 +26,8 @@ func (h *HelpHandler) HandleMessage(ctx context.Context, msg IncomingMessage) er
 
 // isHelpCommand はメンションを除いたメッセージ本文がちょうど"help"または"usage"（大文字小文字を無視）
 // かどうかを判定する
-func isHelpCommand(content, botID, botName string) bool {
-	filtered := stripMentionTokens(strings.Fields(content), botID, botName)
+func isHelpCommand(content, botID string, botNames []string) bool {
+	filtered := stripMentionTokens(strings.Fields(content), botID, botNames)
 	if len(filtered) != 1 {
 		return false
 	}

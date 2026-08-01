@@ -287,10 +287,10 @@ func TestKeywordHandler_HandleMessage_AutoReply_ExpandsNowPlaceholder(t *testing
 
 func TestParseKeywordCommand(t *testing.T) {
 	tests := []struct {
-		name    string
-		content string
-		botName string
-		want    *keywordCommand
+		name     string
+		content  string
+		botNames []string
+		want     *keywordCommand
 	}{
 		{
 			name:    "正常系: メンション1つに続くaddコマンドを解析できる",
@@ -348,15 +348,15 @@ func TestParseKeywordCommand(t *testing.T) {
 			want:    &keywordCommand{Sub: "add", Word: "<@notanid>", Response: "ガッ"},
 		},
 		{
-			name:    "正常系: 構造化メンションでなく地の文の@botName表記でもkeywordコマンドを認識する（コピペ救済）",
-			content: "@usuyuki keyword add ぬるぽ ガッ",
-			botName: "usuyuki",
-			want:    &keywordCommand{Sub: "add", Word: "ぬるぽ", Response: "ガッ"},
+			name:     "正常系: 構造化メンションでなく地の文の@botName表記でもkeywordコマンドを認識する（コピペ救済）",
+			content:  "@usuyuki keyword add ぬるぽ ガッ",
+			botNames: []string{"usuyuki"},
+			want:     &keywordCommand{Sub: "add", Word: "ぬるぽ", Response: "ガッ"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseKeywordCommand(tt.content, "bot", tt.botName)
+			got := parseKeywordCommand(tt.content, "bot", tt.botNames)
 			if (got == nil) != (tt.want == nil) {
 				t.Fatalf("parseKeywordCommand(%q) = %+v, want %+v", tt.content, got, tt.want)
 			}

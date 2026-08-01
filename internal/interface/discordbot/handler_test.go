@@ -44,11 +44,11 @@ func TestMentionTag(t *testing.T) {
 
 func TestStripMentionTokens(t *testing.T) {
 	tests := []struct {
-		name    string
-		fields  []string
-		botID   string
-		botName string
-		want    []string
+		name     string
+		fields   []string
+		botID    string
+		botNames []string
+		want     []string
 	}{
 		{
 			name:   "正常系: BotIDの構造化メンショントークンのみ除去し残りのフィールドを保持する",
@@ -75,32 +75,53 @@ func TestStripMentionTokens(t *testing.T) {
 			want:   []string{"keyword", "add", "<@notanid>", "response"},
 		},
 		{
-			name:    "正常系: 先頭フィールドが@付きbotNameと一致すれば除去する（コピペ救済）",
-			fields:  []string{"@usuyuki", "help"},
-			botID:   "123",
-			botName: "usuyuki",
-			want:    []string{"help"},
+			name:     "正常系: 先頭フィールドが@付きbotNameと一致すれば除去する（コピペ救済）",
+			fields:   []string{"@usuyuki", "help"},
+			botID:    "123",
+			botNames: []string{"usuyuki"},
+			want:     []string{"help"},
 		},
 		{
-			name:    "正常系: 先頭フィールドのbotName一致は大文字小文字を無視する",
-			fields:  []string{"@Usuyuki", "help"},
-			botID:   "123",
-			botName: "usuyuki",
-			want:    []string{"help"},
+			name:     "正常系: 先頭フィールドのbotName一致は大文字小文字を無視する",
+			fields:   []string{"@Usuyuki", "help"},
+			botID:    "123",
+			botNames: []string{"usuyuki"},
+			want:     []string{"help"},
 		},
 		{
-			name:    "異常系: botNameと一致しても先頭以外のフィールドは除去しない",
-			fields:  []string{"keyword", "add", "@usuyuki", "response"},
-			botID:   "123",
-			botName: "usuyuki",
-			want:    []string{"keyword", "add", "@usuyuki", "response"},
+			name:     "異常系: botNameと一致しても先頭以外のフィールドは除去しない",
+			fields:   []string{"keyword", "add", "@usuyuki", "response"},
+			botID:    "123",
+			botNames: []string{"usuyuki"},
+			want:     []string{"keyword", "add", "@usuyuki", "response"},
+		},
+		{
+			name:     "正常系: GlobalNameなど複数候補のいずれかに一致すれば除去する",
+			fields:   []string{"@うすゆき", "help"},
+			botID:    "123",
+			botNames: []string{"usuyuki", "うすゆき"},
+			want:     []string{"help"},
+		},
+		{
+			name:     "正常系: 全角＠のプレフィックスでも除去する",
+			fields:   []string{"＠usuyuki", "help"},
+			botID:    "123",
+			botNames: []string{"usuyuki"},
+			want:     []string{"help"},
+		},
+		{
+			name:     "異常系: 構造化メンションを除去済みの場合は平文フォールバックを重ねて適用しない（引数の誤消去防止）",
+			fields:   []string{"<@123>", "@usuyuki", "keyword", "add", "x", "y"},
+			botID:    "123",
+			botNames: []string{"usuyuki"},
+			want:     []string{"@usuyuki", "keyword", "add", "x", "y"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := stripMentionTokens(tt.fields, tt.botID, tt.botName)
+			got := stripMentionTokens(tt.fields, tt.botID, tt.botNames)
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("stripMentionTokens(%v, %q, %q) = %v, want %v", tt.fields, tt.botID, tt.botName, got, tt.want)
+				t.Errorf("stripMentionTokens(%v, %q, %v) = %v, want %v", tt.fields, tt.botID, tt.botNames, got, tt.want)
 			}
 		})
 	}

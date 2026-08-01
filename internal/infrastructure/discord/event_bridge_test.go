@@ -30,7 +30,7 @@ func TestDetectsMentionsBot(t *testing.T) {
 		mentionUserIDs []string
 		content        string
 		botID          string
-		botName        string
+		botNames       []string
 		want           bool
 	}{
 		{
@@ -38,7 +38,7 @@ func TestDetectsMentionsBot(t *testing.T) {
 			mentionUserIDs: []string{"bot1"},
 			content:        "<@bot1> help",
 			botID:          "bot1",
-			botName:        "usuyuki",
+			botNames:       []string{"usuyuki"},
 			want:           true,
 		},
 		{
@@ -46,7 +46,7 @@ func TestDetectsMentionsBot(t *testing.T) {
 			mentionUserIDs: []string{"user1"},
 			content:        "hello",
 			botID:          "bot1",
-			botName:        "usuyuki",
+			botNames:       []string{"usuyuki"},
 			want:           false,
 		},
 		{
@@ -54,7 +54,7 @@ func TestDetectsMentionsBot(t *testing.T) {
 			mentionUserIDs: nil,
 			content:        "@usuyuki help",
 			botID:          "bot1",
-			botName:        "usuyuki",
+			botNames:       []string{"usuyuki"},
 			want:           true,
 		},
 		{
@@ -62,7 +62,7 @@ func TestDetectsMentionsBot(t *testing.T) {
 			mentionUserIDs: nil,
 			content:        "@Usuyuki help",
 			botID:          "bot1",
-			botName:        "usuyuki",
+			botNames:       []string{"usuyuki"},
 			want:           true,
 		},
 		{
@@ -70,22 +70,75 @@ func TestDetectsMentionsBot(t *testing.T) {
 			mentionUserIDs: nil,
 			content:        "help @usuyuki",
 			botID:          "bot1",
-			botName:        "usuyuki",
+			botNames:       []string{"usuyuki"},
 			want:           false,
 		},
 		{
-			name:           "異常系: botNameが空文字（State.User未同期）なら地の文判定は行わない",
+			name:           "異常系: botNamesが空（State.User未同期）なら地の文判定は行わない",
 			mentionUserIDs: nil,
 			content:        "@usuyuki help",
 			botID:          "bot1",
-			botName:        "",
+			botNames:       nil,
 			want:           false,
+		},
+		{
+			name:           "正常系: 先頭がGlobalName（表示名）と一致すれば真になる（Username以外の表示名でのコピペ救済）",
+			mentionUserIDs: nil,
+			content:        "@うすゆき help",
+			botID:          "bot1",
+			botNames:       []string{"usuyuki", "うすゆき"},
+			want:           true,
+		},
+		{
+			name:           "正常系: 全角＠のプレフィックスでも救済判定が成立する（日本語IME/モバイル入力対策）",
+			mentionUserIDs: nil,
+			content:        "＠usuyuki help",
+			botID:          "bot1",
+			botNames:       []string{"usuyuki"},
+			want:           true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := detectsMentionsBot(tt.mentionUserIDs, tt.content, tt.botID, tt.botName); got != tt.want {
-				t.Errorf("detectsMentionsBot(%v, %q, %q, %q) = %v, want %v", tt.mentionUserIDs, tt.content, tt.botID, tt.botName, got, tt.want)
+			if got := detectsMentionsBot(tt.mentionUserIDs, tt.content, tt.botID, tt.botNames); got != tt.want {
+				t.Errorf("detectsMentionsBot(%v, %q, %q, %v) = %v, want %v", tt.mentionUserIDs, tt.content, tt.botID, tt.botNames, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBotNameCandidates(t *testing.T) {
+	tests := []struct {
+		name string
+		user *discordgo.User
+		want []string
+	}{
+		{
+			name: "正常系: UsernameとGlobalNameが異なれば両方を候補にする",
+			user: &discordgo.User{Username: "usuyuki_bot", GlobalName: "うすゆき"},
+			want: []string{"usuyuki_bot", "うすゆき"},
+		},
+		{
+			name: "正常系: GlobalName未設定ならUsernameのみを候補にする",
+			user: &discordgo.User{Username: "usuyuki_bot", GlobalName: ""},
+			want: []string{"usuyuki_bot"},
+		},
+		{
+			name: "異常系: GlobalNameがUsernameと同一なら重複させない",
+			user: &discordgo.User{Username: "usuyuki_bot", GlobalName: "usuyuki_bot"},
+			want: []string{"usuyuki_bot"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := botNameCandidates(tt.user)
+			if len(got) != len(tt.want) {
+				t.Fatalf("botNameCandidates() = %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("botNameCandidates() = %v, want %v", got, tt.want)
+				}
 			}
 		})
 	}

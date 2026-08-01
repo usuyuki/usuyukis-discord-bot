@@ -35,7 +35,7 @@ func (h *KeywordHandler) HandleMessage(ctx context.Context, msg IncomingMessage)
 }
 
 func (h *KeywordHandler) handleCommand(ctx context.Context, msg IncomingMessage) error {
-	args := parseKeywordCommand(msg.Content, msg.BotID, msg.BotName)
+	args := parseKeywordCommand(msg.Content, msg.BotID, msg.BotMentionNames)
 	if args == nil {
 		return nil
 	}
@@ -105,8 +105,8 @@ type keywordCommand struct {
 // parseKeywordCommand はメンションを除いたメッセージ本文から
 // "keyword add|remove|list ..." 形式のコマンドを解析する。
 // "keyword"で始まらない場合はnilを返す（他のコマンドやただのメンションと区別するため）
-func parseKeywordCommand(content, botID, botName string) *keywordCommand {
-	filtered := stripMentionTokens(strings.Fields(content), botID, botName)
+func parseKeywordCommand(content, botID string, botNames []string) *keywordCommand {
+	filtered := stripMentionTokens(strings.Fields(content), botID, botNames)
 	if len(filtered) == 0 || filtered[0] != "keyword" {
 		return nil
 	}

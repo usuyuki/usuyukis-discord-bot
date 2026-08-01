@@ -15,10 +15,10 @@ import (
 type AdminPermissionChecker func(s *discordgo.Session, guildID, userID string) (bool, error)
 
 // detectsMentionsBot はmentionUserIDsに構造化メンションとしてbotIDが含まれるか、
-// もしくはcontentの先頭単語が"@"を除いてbotNameに一致するかを判定する。
+// もしくはcontentの先頭単語が"@"（全角＠含む）を除いてbotNamesのいずれかに一致するかを判定する。
 // 後者は過去メッセージのコピペ等で構造化メンションが失われ地の文の"@botName"表記に
 // なってしまった場合の救済措置で、誤爆を避けるため先頭単語との一致のみ許容する
-func detectsMentionsBot(mentionUserIDs []string, content, botID, botName string) bool {
+func detectsMentionsBot(mentionUserIDs []string, content, botID string, botNames []string) bool {
 	if botID != "" {
 		for _, id := range mentionUserIDs {
 			if id == botID {
@@ -26,11 +26,24 @@ func detectsMentionsBot(mentionUserIDs []string, content, botID, botName string)
 			}
 		}
 	}
-	if botName == "" {
-		return false
-	}
 	fields := strings.Fields(content)
-	return len(fields) > 0 && strings.EqualFold(strings.TrimPrefix(fields[0], "@"), botName)
+	return len(fields) > 0 && discordbot.MatchesBotMentionName(fields[0], botNames)
+}
+
+// botNameCandidates はBot名によるコピペ救済判定（detectsMentionsBot/stripMentionTokens）で
+// 許容するBot名候補を組み立てる。DiscordクライアントのコピペはUsernameだけでなく
+// GlobalName（表示名）で行われることもあるため両方を候補にする。GlobalNameは未設定
+// （空文字）の場合があり、Usernameと同一の場合の重複判定は無害（EqualFold一致が二重に
+// 成立するだけ）なので単純に除外はしない
+func botNameCandidates(user *discordgo.User) []string {
+	names := make([]string, 0, 2)
+	if user.Username != "" {
+		names = append(names, user.Username)
+	}
+	if user.GlobalName != "" && user.GlobalName != user.Username {
+		names = append(names, user.GlobalName)
+	}
+	return names
 }
 
 // resolveGuild はState経由でギルド情報を取得し、State未キャッシュならREST APIへ
@@ -94,16 +107,18 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		}
 		botID := ""
 		botName := ""
+		var botMentionNames []string
 		if s.State.User != nil {
 			botID = s.State.User.ID
 			botName = s.State.User.Username
+			botMentionNames = botNameCandidates(s.State.User)
 		}
 
 		mentions := make([]string, 0, len(m.Mentions))
 		for _, u := range m.Mentions {
 			mentions = append(mentions, u.ID)
 		}
-		mentionsBot := detectsMentionsBot(mentions, m.Content, botID, botName)
+		mentionsBot := detectsMentionsBot(mentions, m.Content, botID, botMentionNames)
 
 		isAdmin := false
 		if m.GuildID != "" {
@@ -114,14 +129,15 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		}
 
 		router.DispatchMessage(context.Background(), discordbot.IncomingMessage{
-			GuildID:       m.GuildID,
-			ChannelID:     m.ChannelID,
-			AuthorID:      m.Author.ID,
-			Content:       m.Content,
-			MentionsBotID: mentionsBot,
-			BotID:         botID,
-			BotName:       botName,
-			IsAdmin:       isAdmin,
+			GuildID:         m.GuildID,
+			ChannelID:       m.ChannelID,
+			AuthorID:        m.Author.ID,
+			Content:         m.Content,
+			MentionsBotID:   mentionsBot,
+			BotID:           botID,
+			BotName:         botName,
+			BotMentionNames: botMentionNames,
+			IsAdmin:         isAdmin,
 		})
 	})
 

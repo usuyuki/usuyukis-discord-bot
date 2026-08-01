@@ -123,7 +123,7 @@ func TestIsHelpCommand(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isHelpCommand(tt.content, "bot", "usuyuki"); got != tt.want {
+			if got := isHelpCommand(tt.content, "bot", []string{"usuyuki"}); got != tt.want {
 				t.Errorf("isHelpCommand(%q) = %v, want %v", tt.content, got, tt.want)
 			}
 		})
