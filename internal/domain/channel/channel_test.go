@@ -57,6 +57,16 @@ func TestNewName(t *testing.T) {
 			raw:     strings.Repeat("a", 101),
 			wantErr: true,
 		},
+		{
+			name: "正常系: 日本語100文字はUTF-8で300バイトになるが文字数での判定なので登録できる",
+			raw:  strings.Repeat("雑", 100),
+			want: strings.Repeat("雑", 100),
+		},
+		{
+			name:    "異常系: 日本語101文字を入れると文字数で最大長を超えるのでエラーになる",
+			raw:     strings.Repeat("雑", 101),
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

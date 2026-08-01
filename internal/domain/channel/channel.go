@@ -4,6 +4,7 @@ package channel
 import (
 	"fmt"
 	"regexp"
+	"unicode/utf8"
 )
 
 // maxNameLength はDiscordのチャンネル名の最大文字数
@@ -25,8 +26,8 @@ func NewName(raw string) (Name, error) {
 	if raw == "" {
 		return Name{}, fmt.Errorf("channel: name must not be empty")
 	}
-	if len(raw) > maxNameLength {
-		return Name{}, fmt.Errorf("channel: name must be %d characters or fewer, got %d", maxNameLength, len(raw))
+	if length := utf8.RuneCountInString(raw); length > maxNameLength {
+		return Name{}, fmt.Errorf("channel: name must be %d characters or fewer, got %d", maxNameLength, length)
 	}
 	if !validNamePattern.MatchString(raw) {
 		return Name{}, fmt.Errorf("channel: name %q must contain only lowercase letters, numbers, hyphens, underscores, or Japanese characters", raw)
