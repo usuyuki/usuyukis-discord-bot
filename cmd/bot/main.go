@@ -17,6 +17,7 @@ import (
 	"github.com/usuyuki/usuyukis-discord-bot/internal/infrastructure/postgres"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/interface/admin"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/interface/discordbot"
+	channelUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/channel"
 	emojiUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/emoji"
 	haikuUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/haiku"
 	keywordUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/keyword"
@@ -68,6 +69,7 @@ func run() error {
 	messageSender := discordInfra.NewMessageSender(session)
 	guildCache := discordInfra.NewGuildCache(session)
 	emojiSource := discordInfra.NewEmojiSource(session)
+	channelRestrictor := discordInfra.NewChannelRestrictor(session)
 
 	randomizer := discordInfra.NewRandomizer()
 	keywordUseCase := keywordUC.New(keywordRepo, randomizer)
@@ -75,6 +77,7 @@ func run() error {
 	haikuUseCase := haikuUC.New(analyzer, messageSender)
 	emojiUseCase := emojiUC.New(notifyChannelRepo, messageSender)
 	slotUseCase := slotUC.New(emojiSource, randomizer)
+	channelUseCase := channelUC.New(channelRestrictor)
 
 	router := discordbot.NewRouter()
 	if cfg.DevMode {
@@ -86,6 +89,7 @@ func run() error {
 	router.RegisterMessageHandler(discordbot.NewHelpHandler(messageSender))
 	router.RegisterMessageHandler(discordbot.NewSlotHandler(slotUseCase, messageSender))
 	router.RegisterEmojiUpdateHandler(discordbot.NewEmojiHandler(emojiUseCase))
+	router.RegisterChannelCreateHandler(discordbot.NewChannelHandler(channelUseCase))
 
 	discordInfra.RegisterEventBridge(session, router, discordInfra.DefaultAdminPermissionChecker)
 
