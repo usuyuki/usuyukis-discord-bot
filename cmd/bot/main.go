@@ -74,6 +74,7 @@ func run() error {
 	channelCreator := discordInfra.NewChannelCreator(session)
 	channelProposalMessenger := discordInfra.NewChannelProposalMessenger(session)
 	channelApprovalCounter := discordInfra.NewChannelApprovalCounter(session)
+	channelCreationNotifier := discordInfra.NewChannelCreationNotifier(session)
 
 	randomizer := discordInfra.NewRandomizer()
 	keywordUseCase := keywordUC.New(keywordRepo, randomizer)
@@ -81,7 +82,7 @@ func run() error {
 	haikuUseCase := haikuUC.New(analyzer, messageSender)
 	emojiUseCase := emojiUC.New(notifyChannelRepo, messageSender)
 	slotUseCase := slotUC.New(emojiSource, randomizer)
-	channelUseCase := channelUC.New(channelCreator, channelProposalMessenger, channelApprovalCounter, channelProposalRepo, channelSettingRepo)
+	channelUseCase := channelUC.New(channelCreator, channelProposalMessenger, channelApprovalCounter, channelProposalRepo, channelSettingRepo, channelCreationNotifier)
 
 	router := discordbot.NewRouter()
 	if cfg.DevMode {

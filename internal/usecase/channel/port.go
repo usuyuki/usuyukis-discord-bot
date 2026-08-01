@@ -13,6 +13,12 @@ type ProposalMessenger interface {
 	SendProposal(ctx context.Context, channelID, content string) (messageID string, err error)
 }
 
+// Notifier はチャンネル作成が完了したことを提案元のチャンネルへ通知するport。
+// infrastructure層が実装する
+type Notifier interface {
+	NotifyCreated(ctx context.Context, channelID, channelName string) error
+}
+
 // ApprovalCounter はDiscord上の実際のリアクション状態から、提案メッセージに反応した
 // ユニークユーザー数を数えるport。ユーザーがリアクションを取り消すケースを正しく扱うため、
 // イベント側で受信した増分ではなく毎回Discordへ問い合わせて現在のユニーク人数を取得する
