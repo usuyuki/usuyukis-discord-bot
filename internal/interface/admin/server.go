@@ -5,6 +5,7 @@ import (
 	"embed"
 	"html/template"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/keyword"
@@ -28,18 +29,25 @@ type NotifyChannelUseCase interface {
 	Get(ctx context.Context, guildID string, purpose notifychannel.Purpose) (notifychannel.NotifyChannel, bool, error)
 }
 
+// ChannelUseCase はadminサーバーが必要とするチャンネル作成提案の必要承認人数設定
+type ChannelUseCase interface {
+	GetRequiredApprovals(ctx context.Context, guildID string) (int, error)
+	SetRequiredApprovals(ctx context.Context, guildID string, requiredApprovals int) error
+}
+
 // Server は認証なし・localhost限定を前提とする管理画面のHTTPサーバー
 type Server struct {
 	guilds   GuildDirectory
 	keywords KeywordUseCase
 	notify   NotifyChannelUseCase
+	channel  ChannelUseCase
 	pages    map[string]*template.Template // page名(例: "guilds.html") -> layout+content結合済みテンプレート
 }
 
 // NewServer はServerを生成する。layout.htmlとページ別htmlの組み合わせごとに
 // 独立したtemplate.Templateを構築する（html/templateはdefineブロック名が
 // ファイル間で重複すると後勝ちで上書きされてしまうため、まとめてParseFSしない）
-func NewServer(guilds GuildDirectory, keywords KeywordUseCase, notify NotifyChannelUseCase) (*Server, error) {
+func NewServer(guilds GuildDirectory, keywords KeywordUseCase, notify NotifyChannelUseCase, channel ChannelUseCase) (*Server, error) {
 	pageFiles := []string{"guilds.html", "guild_detail.html"}
 	pages := make(map[string]*template.Template, len(pageFiles))
 	for _, page := range pageFiles {
@@ -49,7 +57,7 @@ func NewServer(guilds GuildDirectory, keywords KeywordUseCase, notify NotifyChan
 		}
 		pages[page] = tmpl
 	}
-	return &Server{guilds: guilds, keywords: keywords, notify: notify, pages: pages}, nil
+	return &Server{guilds: guilds, keywords: keywords, notify: notify, channel: channel, pages: pages}, nil
 }
 
 // Handler は管理画面のルーティングを構成したhttp.Handlerを返す
@@ -61,6 +69,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /guilds/{guildID}/keywords/update", s.handleKeywordUpdate)
 	mux.HandleFunc("POST /guilds/{guildID}/keywords/delete", s.handleKeywordDelete)
 	mux.HandleFunc("POST /guilds/{guildID}/notify-channels", s.handleNotifyChannelSet)
+	mux.HandleFunc("POST /guilds/{guildID}/channel-create-setting", s.handleChannelCreateSettingSet)
 	return mux
 }
 
@@ -92,20 +101,28 @@ func (s *Server) handleGuildDetail(w http.ResponseWriter, r *http.Request) {
 
 	emojiChannelName := channelNameForPurpose(ctx, s, guildID, notifychannel.PurposeEmoji, channels)
 
+	requiredApprovals, err := s.channel.GetRequiredApprovals(ctx, guildID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	data := struct {
-		Title            string
-		GuildID          string
-		GuildName        string
-		Keywords         []keyword.Keyword
-		Channels         []ChannelInfo
-		EmojiChannelName string
+		Title                          string
+		GuildID                        string
+		GuildName                      string
+		Keywords                       []keyword.Keyword
+		Channels                       []ChannelInfo
+		EmojiChannelName               string
+		ChannelCreateRequiredApprovals int
 	}{
-		Title:            "ギルド詳細",
-		GuildID:          guildID,
-		GuildName:        s.guilds.GuildName(guildID),
-		Keywords:         keywords,
-		Channels:         channels,
-		EmojiChannelName: emojiChannelName,
+		Title:                          "ギルド詳細",
+		GuildID:                        guildID,
+		GuildName:                      s.guilds.GuildName(guildID),
+		Keywords:                       keywords,
+		Channels:                       channels,
+		EmojiChannelName:               emojiChannelName,
+		ChannelCreateRequiredApprovals: requiredApprovals,
 	}
 	s.render(w, "guild_detail.html", data)
 }
@@ -187,6 +204,25 @@ func (s *Server) handleNotifyChannelSet(w http.ResponseWriter, r *http.Request) 
 	channelID := r.PostForm.Get("channel_id")
 
 	if err := s.notify.Set(r.Context(), guildID, purpose, channelID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/guilds/"+guildID, http.StatusSeeOther)
+}
+
+func (s *Server) handleChannelCreateSettingSet(w http.ResponseWriter, r *http.Request) {
+	guildID := r.PathValue("guildID")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	requiredApprovals, err := strconv.Atoi(r.PostForm.Get("required_approvals"))
+	if err != nil {
+		http.Error(w, "required_approvals must be an integer", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.channel.SetRequiredApprovals(r.Context(), guildID, requiredApprovals); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

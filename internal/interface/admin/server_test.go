@@ -113,7 +113,27 @@ func (f *fakeNotifyChannelUseCase) Get(ctx context.Context, guildID string, purp
 	return nc, ok, nil
 }
 
-func newTestServer(t *testing.T) (*Server, *fakeKeywordUseCase, *fakeNotifyChannelUseCase) {
+type fakeChannelUseCase struct {
+	required map[string]int
+}
+
+func newFakeChannelUseCase() *fakeChannelUseCase {
+	return &fakeChannelUseCase{required: map[string]int{}}
+}
+
+func (f *fakeChannelUseCase) GetRequiredApprovals(ctx context.Context, guildID string) (int, error) {
+	if v, ok := f.required[guildID]; ok {
+		return v, nil
+	}
+	return 2, nil
+}
+
+func (f *fakeChannelUseCase) SetRequiredApprovals(ctx context.Context, guildID string, requiredApprovals int) error {
+	f.required[guildID] = requiredApprovals
+	return nil
+}
+
+func newTestServer(t *testing.T) (*Server, *fakeKeywordUseCase, *fakeNotifyChannelUseCase, *fakeChannelUseCase) {
 	t.Helper()
 	guilds := &fakeGuildDirectory{
 		guilds:   []GuildInfo{{ID: "g1", Name: "テストギルド"}},
@@ -121,15 +141,16 @@ func newTestServer(t *testing.T) (*Server, *fakeKeywordUseCase, *fakeNotifyChann
 	}
 	kw := newFakeKeywordUseCase()
 	nc := newFakeNotifyChannelUseCase()
-	s, err := NewServer(guilds, kw, nc)
+	ch := newFakeChannelUseCase()
+	s, err := NewServer(guilds, kw, nc, ch)
 	if err != nil {
 		t.Fatalf("NewServer() unexpected error = %v", err)
 	}
-	return s, kw, nc
+	return s, kw, nc, ch
 }
 
 func TestServer_GuildList(t *testing.T) {
-	s, _, _ := newTestServer(t)
+	s, _, _, _ := newTestServer(t)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 
@@ -144,7 +165,7 @@ func TestServer_GuildList(t *testing.T) {
 }
 
 func TestServer_KeywordCreateAndDelete(t *testing.T) {
-	s, kw, _ := newTestServer(t)
+	s, kw, _, _ := newTestServer(t)
 
 	t.Run("正常系: フォームPOSTでキーワードが登録される", func(t *testing.T) {
 		form := url.Values{"word": {"ぬるぽ"}, "response": {"ガッ"}}
@@ -196,7 +217,7 @@ func TestServer_KeywordCreateAndDelete(t *testing.T) {
 }
 
 func TestServer_NotifyChannelSet(t *testing.T) {
-	s, _, nc := newTestServer(t)
+	s, _, nc, _ := newTestServer(t)
 
 	form := url.Values{"purpose": {"emoji"}, "channel_id": {"c1"}}
 	req := httptest.NewRequest(http.MethodPost, "/guilds/g1/notify-channels", strings.NewReader(form.Encode()))
@@ -215,7 +236,7 @@ func TestServer_NotifyChannelSet(t *testing.T) {
 }
 
 func TestServer_GuildDetail(t *testing.T) {
-	s, kw, _ := newTestServer(t)
+	s, kw, _, _ := newTestServer(t)
 	_ = kw.Register(context.Background(), "g1", "ぬるぽ", "ガッ")
 
 	req := httptest.NewRequest(http.MethodGet, "/guilds/g1", nil)
@@ -229,5 +250,23 @@ func TestServer_GuildDetail(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, "ぬるぽ") || !strings.Contains(body, "ガッ") {
 		t.Errorf("GET /guilds/g1 body does not contain registered keyword: %s", body)
+	}
+}
+
+func TestServer_ChannelCreateSettingSet(t *testing.T) {
+	s, _, _, ch := newTestServer(t)
+
+	form := url.Values{"required_approvals": {"3"}}
+	req := httptest.NewRequest(http.MethodPost, "/guilds/g1/channel-create-setting", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("POST channel-create-setting status = %d, want %d", rec.Code, http.StatusSeeOther)
+	}
+	if ch.required["g1"] != 3 {
+		t.Errorf("required approvals was not set correctly: %v", ch.required)
 	}
 }

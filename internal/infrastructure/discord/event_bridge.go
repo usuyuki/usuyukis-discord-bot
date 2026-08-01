@@ -3,11 +3,9 @@ package discord
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 
-	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/channel"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/interface/discordbot"
 )
@@ -109,17 +107,15 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		})
 	})
 
-	// 一般ユーザーにもManageChannelsを持つロールを付与しチャンネル作成を許可する運用を前提とし、
-	// 新規作成されたチャンネルが非公開であればチャンネル管理ロールのアクセスを剥奪する
-	s.AddHandler(func(s *discordgo.Session, e *discordgo.ChannelCreate) {
-		if e.GuildID == "" {
+	// Bot自身が最初に付けたリアクション（提案メッセージへの初期✅）による無限ループ・
+	// 誤カウントを避けるため、リアクションしたのがBot自身であるイベントは無視する
+	s.AddHandler(func(s *discordgo.Session, e *discordgo.MessageReactionAdd) {
+		if s.State.User != nil && e.UserID == s.State.User.ID {
 			return
 		}
-		router.DispatchChannelCreate(context.Background(), discordbot.IncomingChannelCreate{
-			GuildID:   e.GuildID,
-			ChannelID: e.ID,
-			IsPrivate: channel.IsPrivate(e.GuildID, convertRoleOverwrites(e.PermissionOverwrites)),
-			CreatorID: resolveChannelCreator(s, e.GuildID, e.ID),
+		router.DispatchReactionAdd(context.Background(), discordbot.IncomingReactionAdd{
+			ChannelID: e.ChannelID,
+			MessageID: e.MessageID,
 		})
 	})
 
@@ -186,56 +182,4 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 			AddedEmojis: added,
 		})
 	})
-}
-
-// convertRoleOverwrites はdiscordgoのPermissionOverwriteのうちロール単位のものだけを
-// domain層のchannel.Overwriteへ変換する。IsPrivate判定はロールへの拒否のみを見るため、
-// メンバー単位のオーバーライドは対象外とする
-func convertRoleOverwrites(overwrites []*discordgo.PermissionOverwrite) []channel.Overwrite {
-	result := make([]channel.Overwrite, 0, len(overwrites))
-	for _, ow := range overwrites {
-		if ow.Type != discordgo.PermissionOverwriteTypeRole {
-			continue
-		}
-		result = append(result, channel.Overwrite{RoleID: ow.ID, Deny: ow.Deny})
-	}
-	return result
-}
-
-// auditLogChannelCreateLimit は監査ログから取得するCHANNEL_CREATEエントリの件数。
-// Discord APIの上限(100)に近い値を指定し、短時間に多数のチャンネルが連続作成されても
-// 該当エントリが取得ウィンドウの外に押し出されにくくする
-const auditLogChannelCreateLimit = 100
-
-// auditLogRetryDelay は監査ログの反映ラグを吸収するための1回限りのリトライ待機時間
-const auditLogRetryDelay = 500 * time.Millisecond
-
-// resolveChannelCreator は監査ログから直近のCHANNEL_CREATEエントリを検索し、
-// channelIDに一致するものがあれば作成者のユーザーIDを返す。監査ログの反映には若干の
-// タイムラグがあるため、1回目で見つからなければ短い待機を挟んで1回だけ再試行する。
-// 取得自体に失敗するケースもあり得るため、その場合は空文字を返す。
-// 作成者が解決できない場合、呼び出し元はロール剥奪自体は行いつつ作成者への明示的な
-// 許可は設定できないため、作成者が締め出されるリスクがある（利用可能な情報の範囲で
-// できる限りラグを吸収した上での安全側フォールバック）
-func resolveChannelCreator(s *discordgo.Session, guildID, channelID string) string {
-	if userID := lookupChannelCreatorFromAuditLog(s, guildID, channelID); userID != "" {
-		return userID
-	}
-	time.Sleep(auditLogRetryDelay)
-	return lookupChannelCreatorFromAuditLog(s, guildID, channelID)
-}
-
-// lookupChannelCreatorFromAuditLog は監査ログを1回だけ問い合わせ、channelIDに
-// 一致するCHANNEL_CREATEエントリのユーザーIDを返す。見つからない/取得失敗時は空文字を返す
-func lookupChannelCreatorFromAuditLog(s *discordgo.Session, guildID, channelID string) string {
-	auditLog, err := s.GuildAuditLog(guildID, "", "", int(discordgo.AuditLogActionChannelCreate), auditLogChannelCreateLimit)
-	if err != nil {
-		return ""
-	}
-	for _, entry := range auditLog.AuditLogEntries {
-		if entry.TargetID == channelID {
-			return entry.UserID
-		}
-	}
-	return ""
 }

@@ -2,7 +2,7 @@
 
 ## ステータス
 
-決定（Accepted）
+撤回（Superseded） by [0013](./0013_channel_creation_bot_command.md)
 
 ## コンテキスト
 

@@ -1,12 +1,9 @@
 package discord
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
-
-	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/channel"
 )
 
 // newTestSession はState上にGuild/Role/Memberを登録済みのSessionを組み立てる。
@@ -76,36 +73,6 @@ func TestDefaultAdminPermissionChecker(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("DefaultAdminPermissionChecker() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestConvertRoleOverwrites(t *testing.T) {
-	tests := []struct {
-		name       string
-		overwrites []*discordgo.PermissionOverwrite
-		want       []channel.Overwrite
-	}{
-		{
-			name: "正常系: ロール単位のオーバーライドのみ変換される",
-			overwrites: []*discordgo.PermissionOverwrite{
-				{ID: "g1", Type: discordgo.PermissionOverwriteTypeRole, Deny: discordgo.PermissionViewChannel},
-				{ID: "user1", Type: discordgo.PermissionOverwriteTypeMember, Deny: discordgo.PermissionViewChannel},
-			},
-			want: []channel.Overwrite{{RoleID: "g1", Deny: discordgo.PermissionViewChannel}},
-		},
-		{
-			name:       "異常系: オーバーライドが空なら空スライスを返す",
-			overwrites: nil,
-			want:       []channel.Overwrite{},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := convertRoleOverwrites(tt.overwrites)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("convertRoleOverwrites(%v) = %v, want %v", tt.overwrites, got, tt.want)
 			}
 		})
 	}
