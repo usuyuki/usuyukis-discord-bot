@@ -51,14 +51,14 @@ func (f *fakeCounter) CountUniqueReactors(ctx context.Context, channelID, messag
 type fakeNotifier struct {
 	called       bool
 	gotChannelID string
-	gotName      string
+	gotContent   string
 	err          error
 }
 
-func (f *fakeNotifier) NotifyCreated(ctx context.Context, channelID, channelName string) error {
+func (f *fakeNotifier) SendMessage(ctx context.Context, channelID, content string) error {
 	f.called = true
 	f.gotChannelID = channelID
-	f.gotName = channelName
+	f.gotContent = content
 	return f.err
 }
 
@@ -227,8 +227,33 @@ func TestUseCase_RecordReaction(t *testing.T) {
 		if !notifier.called {
 			t.Fatal("RecordReaction() should notify the proposal channel that the channel was created")
 		}
-		if notifier.gotChannelID != "c1" || notifier.gotName != "general-chat" {
-			t.Errorf("Notifier received channelID=%q name=%q, want c1/general-chat", notifier.gotChannelID, notifier.gotName)
+		if notifier.gotChannelID != "c1" || notifier.gotContent != "#general-chat を作成したよ！" {
+			t.Errorf("Notifier received channelID=%q content=%q, want c1/%q", notifier.gotChannelID, notifier.gotContent, "#general-chat を作成したよ！")
+		}
+	})
+
+	t.Run("異常系: チャンネル作成は成功したがNotifierがエラーを返すとErrNotifyCreatedFailedでラップして返し、提案は解決済みのままにする", func(t *testing.T) {
+		wantErr := errors.New("discord api down")
+		creator := &fakeCreator{}
+		repo := newFakeProposalRepo()
+		repo.findResult = Proposal{GuildID: "g1", ChannelID: "c1", MessageID: "msg1", ChannelName: "general-chat", ProposerID: "user1"}
+		repo.findFound = true
+		counter := &fakeCounter{count: 2}
+		notifier := &fakeNotifier{err: wantErr}
+		u := newTestUseCase(creator, &fakeMessenger{}, counter, repo, &fakeSettingRepo{required: 2, found: true}, notifier)
+
+		err := u.RecordReaction(context.Background(), "c1", "msg1")
+		if !errors.Is(err, ErrNotifyCreatedFailed) {
+			t.Fatalf("RecordReaction() error = %v, want wrapped %v", err, ErrNotifyCreatedFailed)
+		}
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("RecordReaction() error = %v, want wrapped %v", err, wantErr)
+		}
+		if !creator.called {
+			t.Error("RecordReaction() should still have created the channel")
+		}
+		if !repo.resolved["c1/msg1"] {
+			t.Error("RecordReaction() should keep the proposal resolved even when only the notification fails, to avoid creating the channel twice on retry")
 		}
 	})
 
