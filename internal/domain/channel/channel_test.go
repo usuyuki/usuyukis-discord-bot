@@ -23,6 +23,16 @@ func TestNewName(t *testing.T) {
 			want: "my_channel",
 		},
 		{
+			name: "正常系: ひらがな・カタカナ・漢字を含む名前も登録できる",
+			raw:  "雑談チャンネルその1",
+			want: "雑談チャンネルその1",
+		},
+		{
+			name: "正常系: 日本語とハイフン・アンダースコアの混在も登録できる",
+			raw:  "お知らせ-general_ch",
+			want: "お知らせ-general_ch",
+		},
+		{
 			name:    "異常系: 空文字を入れると名前が空になるのでエラーになる",
 			raw:     "",
 			wantErr: true,
@@ -45,6 +55,16 @@ func TestNewName(t *testing.T) {
 		{
 			name:    "異常系: 101文字を入れると最大長を超えるのでエラーになる",
 			raw:     strings.Repeat("a", 101),
+			wantErr: true,
+		},
+		{
+			name: "正常系: 日本語100文字はUTF-8で300バイトになるが文字数での判定なので登録できる",
+			raw:  strings.Repeat("雑", 100),
+			want: strings.Repeat("雑", 100),
+		},
+		{
+			name:    "異常系: 日本語101文字を入れると文字数で最大長を超えるのでエラーになる",
+			raw:     strings.Repeat("雑", 101),
 			wantErr: true,
 		},
 	}

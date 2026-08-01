@@ -76,6 +76,9 @@ func TestHelpHandler_HandleMessage(t *testing.T) {
 				if !strings.Contains(sender.sentContent, tt.msg.BotName) {
 					t.Errorf("HandleMessage() content = %q, want to contain bot name %q", sender.sentContent, tt.msg.BotName)
 				}
+				if strings.Contains(sender.sentContent, "`"+wantTag) {
+					t.Errorf("HandleMessage() content = %q, mention tag must be outside code span (Discord does not resolve mentions inside backticks)", sender.sentContent)
+				}
 			}
 		})
 	}
