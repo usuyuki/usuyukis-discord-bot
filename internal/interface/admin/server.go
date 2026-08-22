@@ -100,6 +100,7 @@ func (s *Server) handleGuildDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	emojiChannelName := channelNameForPurpose(ctx, s, guildID, notifychannel.PurposeEmoji, channels)
+	voiceCallChannelName := channelNameForPurpose(ctx, s, guildID, notifychannel.PurposeVoiceCall, channels)
 
 	requiredApprovals, err := s.channel.GetRequiredApprovals(ctx, guildID)
 	if err != nil {
@@ -114,6 +115,7 @@ func (s *Server) handleGuildDetail(w http.ResponseWriter, r *http.Request) {
 		Keywords                       []keyword.Keyword
 		Channels                       []ChannelInfo
 		EmojiChannelName               string
+		VoiceCallChannelName           string
 		ChannelCreateRequiredApprovals int
 	}{
 		Title:                          "ギルド詳細",
@@ -122,6 +124,7 @@ func (s *Server) handleGuildDetail(w http.ResponseWriter, r *http.Request) {
 		Keywords:                       keywords,
 		Channels:                       channels,
 		EmojiChannelName:               emojiChannelName,
+		VoiceCallChannelName:           voiceCallChannelName,
 		ChannelCreateRequiredApprovals: requiredApprovals,
 	}
 	s.render(w, "guild_detail.html", data)

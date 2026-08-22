@@ -8,12 +8,14 @@ type Purpose string
 const (
 	// PurposeEmoji は絵文字追加通知の用途
 	PurposeEmoji Purpose = "emoji"
+	// PurposeVoiceCall は音声通話の開始・終了通知の用途
+	PurposeVoiceCall Purpose = "voicecall"
 )
 
 // IsValid はPurposeが定義済みの値かどうかを判定する
 func (p Purpose) IsValid() bool {
 	switch p {
-	case PurposeEmoji:
+	case PurposeEmoji, PurposeVoiceCall:
 		return true
 	default:
 		return false

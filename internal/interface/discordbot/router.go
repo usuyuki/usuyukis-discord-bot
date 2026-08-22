@@ -8,9 +8,11 @@ import (
 // Router は登録された全ハンドラへイベントをブロードキャストする薄いディスパッチャ。
 // 新機能追加時はRegisterMessageHandler/RegisterEmojiUpdateHandlerで1行追加するだけでよい
 type Router struct {
-	messageHandlers     []MessageHandler
-	emojiUpdateHandlers []EmojiUpdateHandler
-	reactionAddHandlers []ReactionAddHandler
+	messageHandlers          []MessageHandler
+	emojiUpdateHandlers      []EmojiUpdateHandler
+	reactionAddHandlers      []ReactionAddHandler
+	voiceCallStartedHandlers []VoiceCallStartedHandler
+	voiceCallEndedHandlers   []VoiceCallEndedHandler
 	// devChannelID が空でない場合、DispatchMessageはこのチャンネル以外の
 	// メッセージを全ハンドラへ配送しない（dev mode）
 	devChannelID string
@@ -40,6 +42,16 @@ func (r *Router) RegisterEmojiUpdateHandler(h EmojiUpdateHandler) {
 // RegisterReactionAddHandler はReactionAddHandlerを登録する
 func (r *Router) RegisterReactionAddHandler(h ReactionAddHandler) {
 	r.reactionAddHandlers = append(r.reactionAddHandlers, h)
+}
+
+// RegisterVoiceCallStartedHandler はVoiceCallStartedHandlerを登録する
+func (r *Router) RegisterVoiceCallStartedHandler(h VoiceCallStartedHandler) {
+	r.voiceCallStartedHandlers = append(r.voiceCallStartedHandlers, h)
+}
+
+// RegisterVoiceCallEndedHandler はVoiceCallEndedHandlerを登録する
+func (r *Router) RegisterVoiceCallEndedHandler(h VoiceCallEndedHandler) {
+	r.voiceCallEndedHandlers = append(r.voiceCallEndedHandlers, h)
 }
 
 // DispatchMessage は登録済み全MessageHandlerへメッセージイベントを配送する。
@@ -80,6 +92,33 @@ func (r *Router) DispatchReactionAdd(ctx context.Context, ev IncomingReactionAdd
 	for _, h := range r.reactionAddHandlers {
 		if err := h.HandleReactionAdd(ctx, ev); err != nil {
 			log.Printf("discordbot: reaction add handler error: %v", err)
+		}
+	}
+}
+
+// DispatchVoiceCallStarted は登録済み全VoiceCallStartedHandlerへ通話開始イベントを配送する。
+// ボイスチャンネルはテキストチャンネルと異なりdevChannelIDとの比較対象を持たないため、
+// 絵文字通知と同様dev mode中は配送しない
+func (r *Router) DispatchVoiceCallStarted(ctx context.Context, ev IncomingVoiceCallStarted) {
+	if r.devChannelID != "" {
+		return
+	}
+	for _, h := range r.voiceCallStartedHandlers {
+		if err := h.HandleVoiceCallStarted(ctx, ev); err != nil {
+			log.Printf("discordbot: voice call started handler error: %v", err)
+		}
+	}
+}
+
+// DispatchVoiceCallEnded は登録済み全VoiceCallEndedHandlerへ通話終了イベントを配送する。
+// dev mode中の扱いはDispatchVoiceCallStartedと同様
+func (r *Router) DispatchVoiceCallEnded(ctx context.Context, ev IncomingVoiceCallEnded) {
+	if r.devChannelID != "" {
+		return
+	}
+	for _, h := range r.voiceCallEndedHandlers {
+		if err := h.HandleVoiceCallEnded(ctx, ev); err != nil {
+			log.Printf("discordbot: voice call ended handler error: %v", err)
 		}
 	}
 }

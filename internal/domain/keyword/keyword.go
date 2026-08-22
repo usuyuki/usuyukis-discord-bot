@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/jst"
 )
 
 var (
@@ -18,12 +20,6 @@ var (
 // nowPlaceholder は応答文言中に含まれていると現在日時に展開されるプレースホルダー。
 // 打刻Bot（固定の時刻返信専用Bot）を廃止し、この記法を使ったキーワード自動応答に統一する
 const nowPlaceholder = "{$now}"
-
-// nowLayout はnowPlaceholder展開時の日時表示フォーマット
-const nowLayout = "2006-01-02 15:04:05"
-
-// jst は日本標準時（UTC+9）。実行環境にtzdataが無くても解決できるようFixedZoneで定義する
-var jst = time.FixedZone("Asia/Tokyo", 9*60*60)
 
 // Keyword はギルドごとに登録されるキーワード自動応答の値オブジェクト。
 // 1つのキーワードに対して複数の応答候補（Responses）を持ち、マッチ時にはその中からランダムに1件選ばれる
@@ -62,5 +58,5 @@ func (k Keyword) Matches(messageBody string) bool {
 // 応答候補からどれを選ぶか（乱数選択）は呼び出し側（usecase層）の責務とし、
 // domain層は選択済みのインデックスを受け取るだけに留める
 func (k Keyword) ResponseAt(i int, now time.Time) string {
-	return strings.ReplaceAll(k.Responses[i], nowPlaceholder, now.In(jst).Format(nowLayout))
+	return strings.ReplaceAll(k.Responses[i], nowPlaceholder, jst.Format(now))
 }

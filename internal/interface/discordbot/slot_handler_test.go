@@ -30,13 +30,13 @@ func TestSlotHandler_HandleMessage(t *testing.T) {
 			name:        "正常系: メンションなしで「うすゆきスロット」と言うと3つ揃って大当たりを通知する",
 			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "うすゆきスロット", MentionsBotID: false},
 			wantSent:    true,
-			wantContent: "<:a:1> | <:a:1> | <:a:1>\n🎉 大当たり！",
+			wantContent: "<:a:1> <:a:1> <:a:1>\n🎉 大当たり！",
 		},
 		{
 			name:        "正常系: 前後に空白があっても反応する",
 			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "  うすゆきスロット  ", MentionsBotID: false},
 			wantSent:    true,
-			wantContent: "<:a:1> | <:a:1> | <:a:1>\n🎉 大当たり！",
+			wantContent: "<:a:1> <:a:1> <:a:1>\n🎉 大当たり！",
 		},
 		{
 			name:     "異常系: トリガー文言以外には反応しない",

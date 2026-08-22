@@ -40,7 +40,7 @@ func (h *SlotHandler) HandleMessage(ctx context.Context, msg IncomingMessage) er
 // formatSlotResult はスロットの抽選結果を通知文言に整形する
 func formatSlotResult(result slot.Result) string {
 	reels := result.Reels()
-	line := strings.Join(reels[:], " | ")
+	line := strings.Join(reels[:], " ")
 	switch result.Rank() {
 	case slot.RankBig:
 		return line + "\n🎉 大当たり！"
