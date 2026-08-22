@@ -43,7 +43,7 @@ domain (外部依存ゼロの値オブジェクト・純粋ロジック)
 ```
 cmd/bot/main.go                  … エントリポイント（DI結線）
 internal/
-  domain/                        … 値オブジェクト・純粋ロジック（keyword, notifychannel, haiku, channel, voicecall）
+  domain/                        … 値オブジェクト・純粋ロジック（keyword, notifychannel, haiku, channel, voicecall, jst）
   usecase/                       … アプリケーションロジック + port interface定義
   infrastructure/
     discord/                     … discordgoセッション・MessageSender・GuildCache実装

@@ -7,6 +7,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/jst"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/voicecall"
 )
 
@@ -16,14 +17,6 @@ const (
 	voiceCallStartedColor = 0xE67E22
 	voiceCallEndedColor   = 0x9B59B6
 )
-
-// jst は日本標準時（UTC+9）。実行環境にtzdataが無くても解決できるようFixedZoneで定義する
-var jst = time.FixedZone("Asia/Tokyo", 9*60*60)
-
-// formatJST はtをJSTの日時文字列に整形する
-func formatJST(t time.Time) string {
-	return t.In(jst).Format("2006-01-02 15:04:05")
-}
 
 // formatDuration はdをHH:MM:SS形式の文字列に整形する
 func formatDuration(d time.Duration) string {
@@ -52,7 +45,7 @@ func (s *VoiceCallEmbedSender) SendCallStarted(ctx context.Context, channelID st
 		Fields: []*discordgo.MessageEmbedField{
 			{Name: "チャンネル", Value: notice.VoiceChannelName, Inline: true},
 			{Name: "始めた人", Value: notice.StarterName, Inline: true},
-			{Name: "開始時間", Value: formatJST(notice.StartedAt), Inline: true},
+			{Name: "開始時間", Value: jst.Format(notice.StartedAt), Inline: true},
 		},
 	}
 	if notice.StarterAvatarURL != "" {

@@ -237,7 +237,7 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 
 	// 起動時およびBot参加時点で既に通話中のチャンネルがある状態を初期化する
 	s.AddHandler(func(s *discordgo.Session, e *discordgo.GuildCreate) {
-		tracker.initGuild(e.ID, e.VoiceStates)
+		tracker.initGuild(e.ID, e.VoiceStates, time.Now())
 	})
 
 	// Botがギルドから退出/キックされた際、trackerに残り続ける不要なエントリを削除する
@@ -252,41 +252,45 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 		now := time.Now()
 		before := e.BeforeUpdate
 
-		// チャンネル移動（A→B）は退室・入室が1イベントに同居するため、
-		// 旧チャンネルの退室と新チャンネルの入室をそれぞれ独立に判定する
-		if before != nil && before.ChannelID != "" && before.ChannelID != e.ChannelID {
-			if transition, _, duration, durationKnown := tracker.channelTransition(e.GuildID, before.ChannelID, -1, now); transition == voicecall.TransitionEnded {
-				router.DispatchVoiceCallEnded(context.Background(), discordbot.IncomingVoiceCallEnded{
-					GuildID: e.GuildID,
-					Notice: voicecall.EndedNotice{
-						VoiceChannelName: resolveChannelName(s, before.ChannelID),
-						Duration:         duration,
-						DurationKnown:    durationKnown,
-					},
-				})
+		// discordgoはVoiceStateUpdateごとに別goroutineでハンドラを起動しゲートウェイ到着順を
+		// 保証しないため、同一ギルドの処理をtracker.withGuildLockで直列化してから判定する
+		tracker.withGuildLock(e.GuildID, func() {
+			// チャンネル移動（A→B）は退室・入室が1イベントに同居するため、
+			// 旧チャンネルの退室と新チャンネルの入室をそれぞれ独立に判定する
+			if before != nil && before.ChannelID != "" && before.ChannelID != e.ChannelID {
+				if transition, _, duration, durationKnown := tracker.channelTransition(e.GuildID, before.ChannelID, -1, now); transition == voicecall.TransitionEnded {
+					router.DispatchVoiceCallEnded(context.Background(), discordbot.IncomingVoiceCallEnded{
+						GuildID: e.GuildID,
+						Notice: voicecall.EndedNotice{
+							VoiceChannelName: resolveChannelName(s, before.ChannelID),
+							Duration:         duration,
+							DurationKnown:    durationKnown,
+						},
+					})
+				}
 			}
-		}
 
-		if e.ChannelID != "" && (before == nil || before.ChannelID != e.ChannelID) {
-			if transition, startedAt, _, _ := tracker.channelTransition(e.GuildID, e.ChannelID, 1, now); transition == voicecall.TransitionStarted {
-				starterName := ""
-				starterAvatarURL := ""
-				if e.Member != nil {
-					starterName = e.Member.DisplayName()
-					if e.Member.User != nil {
+			if e.ChannelID != "" && (before == nil || before.ChannelID != e.ChannelID) {
+				if transition, startedAt, _, _ := tracker.channelTransition(e.GuildID, e.ChannelID, 1, now); transition == voicecall.TransitionStarted {
+					starterName := ""
+					starterAvatarURL := ""
+					// DisplayName()はNickが空の場合e.Member.Userを無条件で参照するため、
+					// AvatarURL取得と同じUser != nilガードの内側でまとめて呼び出す
+					if e.Member != nil && e.Member.User != nil {
+						starterName = e.Member.DisplayName()
 						starterAvatarURL = e.Member.User.AvatarURL("")
 					}
+					router.DispatchVoiceCallStarted(context.Background(), discordbot.IncomingVoiceCallStarted{
+						GuildID: e.GuildID,
+						Notice: voicecall.StartedNotice{
+							VoiceChannelName: resolveChannelName(s, e.ChannelID),
+							StarterName:      starterName,
+							StarterAvatarURL: starterAvatarURL,
+							StartedAt:        startedAt,
+						},
+					})
 				}
-				router.DispatchVoiceCallStarted(context.Background(), discordbot.IncomingVoiceCallStarted{
-					GuildID: e.GuildID,
-					Notice: voicecall.StartedNotice{
-						VoiceChannelName: resolveChannelName(s, e.ChannelID),
-						StarterName:      starterName,
-						StarterAvatarURL: starterAvatarURL,
-						StartedAt:        startedAt,
-					},
-				})
 			}
-		}
+		})
 	})
 }
