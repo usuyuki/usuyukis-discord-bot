@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/voicecall"
 )
 
 type recordingMessageHandler struct {
@@ -33,6 +34,24 @@ type recordingReactionAddHandler struct {
 }
 
 func (h *recordingReactionAddHandler) HandleReactionAdd(ctx context.Context, ev IncomingReactionAdd) error {
+	h.received = append(h.received, ev)
+	return nil
+}
+
+type recordingVoiceCallStartedHandler struct {
+	received []IncomingVoiceCallStarted
+}
+
+func (h *recordingVoiceCallStartedHandler) HandleVoiceCallStarted(ctx context.Context, ev IncomingVoiceCallStarted) error {
+	h.received = append(h.received, ev)
+	return nil
+}
+
+type recordingVoiceCallEndedHandler struct {
+	received []IncomingVoiceCallEnded
+}
+
+func (h *recordingVoiceCallEndedHandler) HandleVoiceCallEnded(ctx context.Context, ev IncomingVoiceCallEnded) error {
 	h.received = append(h.received, ev)
 	return nil
 }
@@ -183,6 +202,64 @@ func TestRouter_DispatchReactionAdd(t *testing.T) {
 
 		if len(h.received) != 1 {
 			t.Errorf("handler should receive the reaction event from the dev channel, got %v", h.received)
+		}
+	})
+}
+
+func TestRouter_DispatchVoiceCallStarted(t *testing.T) {
+	t.Run("正常系: 登録済み全ハンドラに通話開始イベントが配送される", func(t *testing.T) {
+		r := NewRouter()
+		h := &recordingVoiceCallStartedHandler{}
+		r.RegisterVoiceCallStartedHandler(h)
+
+		ev := IncomingVoiceCallStarted{GuildID: "g1", Notice: voicecall.StartedNotice{VoiceChannelName: "雑談"}}
+		r.DispatchVoiceCallStarted(context.Background(), ev)
+
+		if len(h.received) != 1 || h.received[0].GuildID != ev.GuildID {
+			t.Errorf("handler did not receive expected event: %v", h.received)
+		}
+	})
+
+	t.Run("異常系: dev mode設定時はボイスチャンネルイベントはチャンネル概念を持たないため配送されない", func(t *testing.T) {
+		r := NewRouter()
+		r.SetDevChannelID("dev-channel")
+		h := &recordingVoiceCallStartedHandler{}
+		r.RegisterVoiceCallStartedHandler(h)
+
+		ev := IncomingVoiceCallStarted{GuildID: "g1", Notice: voicecall.StartedNotice{VoiceChannelName: "雑談"}}
+		r.DispatchVoiceCallStarted(context.Background(), ev)
+
+		if len(h.received) != 0 {
+			t.Errorf("handler should not receive voice call started events while dev mode is enabled, got %v", h.received)
+		}
+	})
+}
+
+func TestRouter_DispatchVoiceCallEnded(t *testing.T) {
+	t.Run("正常系: 登録済み全ハンドラに通話終了イベントが配送される", func(t *testing.T) {
+		r := NewRouter()
+		h := &recordingVoiceCallEndedHandler{}
+		r.RegisterVoiceCallEndedHandler(h)
+
+		ev := IncomingVoiceCallEnded{GuildID: "g1", Notice: voicecall.EndedNotice{VoiceChannelName: "雑談"}}
+		r.DispatchVoiceCallEnded(context.Background(), ev)
+
+		if len(h.received) != 1 || h.received[0].GuildID != ev.GuildID {
+			t.Errorf("handler did not receive expected event: %v", h.received)
+		}
+	})
+
+	t.Run("異常系: dev mode設定時はボイスチャンネルイベントはチャンネル概念を持たないため配送されない", func(t *testing.T) {
+		r := NewRouter()
+		r.SetDevChannelID("dev-channel")
+		h := &recordingVoiceCallEndedHandler{}
+		r.RegisterVoiceCallEndedHandler(h)
+
+		ev := IncomingVoiceCallEnded{GuildID: "g1", Notice: voicecall.EndedNotice{VoiceChannelName: "雑談"}}
+		r.DispatchVoiceCallEnded(context.Background(), ev)
+
+		if len(h.received) != 0 {
+			t.Errorf("handler should not receive voice call ended events while dev mode is enabled, got %v", h.received)
 		}
 	})
 }

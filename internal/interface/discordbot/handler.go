@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/voicecall"
 )
 
 // MessageSender はDiscordチャンネルへの返信を行うport
@@ -106,6 +107,18 @@ type IncomingReactionAdd struct {
 	MessageID string
 }
 
+// IncomingVoiceCallStarted はボイスチャンネルが無人から有人になった（通話開始）イベントを薄くラップした型
+type IncomingVoiceCallStarted struct {
+	GuildID string
+	Notice  voicecall.StartedNotice
+}
+
+// IncomingVoiceCallEnded はボイスチャンネルが有人から無人になった（通話終了）イベントを薄くラップした型
+type IncomingVoiceCallEnded struct {
+	GuildID string
+	Notice  voicecall.EndedNotice
+}
+
 // MessageHandler はメッセージ受信時に処理を行うプラグインの契約。
 // 新しいメッセージ系Bot機能はこのインターフェースを実装しrouterへ登録するだけで有効化される
 type MessageHandler interface {
@@ -120,4 +133,14 @@ type EmojiUpdateHandler interface {
 // ReactionAddHandler はメッセージへのリアクション追加時に処理を行うプラグインの契約
 type ReactionAddHandler interface {
 	HandleReactionAdd(ctx context.Context, ev IncomingReactionAdd) error
+}
+
+// VoiceCallStartedHandler はボイスチャンネルが無人から有人になった（通話開始）際に処理を行うプラグインの契約
+type VoiceCallStartedHandler interface {
+	HandleVoiceCallStarted(ctx context.Context, ev IncomingVoiceCallStarted) error
+}
+
+// VoiceCallEndedHandler はボイスチャンネルが有人から無人になった（通話終了）際に処理を行うプラグインの契約
+type VoiceCallEndedHandler interface {
+	HandleVoiceCallEnded(ctx context.Context, ev IncomingVoiceCallEnded) error
 }

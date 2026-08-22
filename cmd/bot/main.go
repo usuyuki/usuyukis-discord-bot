@@ -23,6 +23,7 @@ import (
 	keywordUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/keyword"
 	notifychannelUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/notifychannel"
 	slotUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/slot"
+	voicecallUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/voicecall"
 )
 
 func main() {
@@ -69,6 +70,7 @@ func run() error {
 	channelProposalRepo := postgres.NewChannelProposalRepository(pool)
 	channelSettingRepo := postgres.NewChannelSettingRepository(pool)
 	messageSender := discordInfra.NewMessageSender(session)
+	voiceCallEmbedSender := discordInfra.NewVoiceCallEmbedSender(session)
 	guildCache := discordInfra.NewGuildCache(session)
 	emojiSource := discordInfra.NewEmojiSource(session)
 	channelCreator := discordInfra.NewChannelCreator(session)
@@ -80,6 +82,7 @@ func run() error {
 	notifyChannelUseCase := notifychannelUC.New(notifyChannelRepo)
 	haikuUseCase := haikuUC.New(analyzer, messageSender)
 	emojiUseCase := emojiUC.New(notifyChannelRepo, messageSender)
+	voiceCallUseCase := voicecallUC.New(notifyChannelRepo, voiceCallEmbedSender)
 	slotUseCase := slotUC.New(emojiSource, randomizer)
 	channelUseCase := channelUC.New(channelCreator, channelProposalMessenger, channelApprovalCounter, channelProposalRepo, channelSettingRepo, messageSender)
 
@@ -95,6 +98,9 @@ func run() error {
 	router.RegisterMessageHandler(discordbot.NewChannelHandler(channelUseCase, messageSender))
 	router.RegisterEmojiUpdateHandler(discordbot.NewEmojiHandler(emojiUseCase))
 	router.RegisterReactionAddHandler(discordbot.NewReactionHandler(channelUseCase))
+	voiceCallHandler := discordbot.NewVoiceCallHandler(voiceCallUseCase)
+	router.RegisterVoiceCallStartedHandler(voiceCallHandler)
+	router.RegisterVoiceCallEndedHandler(voiceCallHandler)
 
 	discordInfra.RegisterEventBridge(session, router, discordInfra.DefaultAdminPermissionChecker)
 

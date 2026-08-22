@@ -4,10 +4,12 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/emoji"
+	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/voicecall"
 	"github.com/usuyuki/usuyukis-discord-bot/internal/interface/discordbot"
 )
 
@@ -54,6 +56,18 @@ func resolveGuild(s *discordgo.Session, guildID string) (*discordgo.Guild, error
 		return s.Guild(guildID)
 	}
 	return guild, nil
+}
+
+// resolveChannelName はState経由でチャンネル名を取得し、State未キャッシュならREST APIへ
+// フォールバックする。取得に失敗した場合はチャンネルIDをそのまま返す（通知自体は止めない）
+func resolveChannelName(s *discordgo.Session, channelID string) string {
+	if c, err := s.State.Channel(channelID); err == nil {
+		return c.Name
+	}
+	if c, err := s.Channel(channelID); err == nil {
+		return c.Name
+	}
+	return channelID
 }
 
 // DefaultAdminPermissionChecker はGuildのOwnerIDおよびMemberのロールから
@@ -215,5 +229,64 @@ func RegisterEventBridge(s *discordgo.Session, router *discordbot.Router, checkA
 			GuildID:     e.GuildID,
 			AddedEmojis: added,
 		})
+	})
+
+	// ボイスチャンネルの在室者数をプロセスローカルに追跡し、0人↔1人以上をまたぐ変化を
+	// 通話の開始/終了として検知する。詳細はvoiceCallTrackerのコメントを参照
+	tracker := newVoiceCallTracker()
+
+	// 起動時およびBot参加時点で既に通話中のチャンネルがある状態を初期化する
+	s.AddHandler(func(s *discordgo.Session, e *discordgo.GuildCreate) {
+		tracker.initGuild(e.ID, e.VoiceStates)
+	})
+
+	// Botがギルドから退出/キックされた際、trackerに残り続ける不要なエントリを削除する
+	s.AddHandler(func(s *discordgo.Session, e *discordgo.GuildDelete) {
+		if e.Unavailable {
+			return
+		}
+		tracker.removeGuild(e.ID)
+	})
+
+	s.AddHandler(func(s *discordgo.Session, e *discordgo.VoiceStateUpdate) {
+		now := time.Now()
+		before := e.BeforeUpdate
+
+		// チャンネル移動（A→B）は退室・入室が1イベントに同居するため、
+		// 旧チャンネルの退室と新チャンネルの入室をそれぞれ独立に判定する
+		if before != nil && before.ChannelID != "" && before.ChannelID != e.ChannelID {
+			if transition, _, duration, durationKnown := tracker.channelTransition(e.GuildID, before.ChannelID, -1, now); transition == voicecall.TransitionEnded {
+				router.DispatchVoiceCallEnded(context.Background(), discordbot.IncomingVoiceCallEnded{
+					GuildID: e.GuildID,
+					Notice: voicecall.EndedNotice{
+						VoiceChannelName: resolveChannelName(s, before.ChannelID),
+						Duration:         duration,
+						DurationKnown:    durationKnown,
+					},
+				})
+			}
+		}
+
+		if e.ChannelID != "" && (before == nil || before.ChannelID != e.ChannelID) {
+			if transition, startedAt, _, _ := tracker.channelTransition(e.GuildID, e.ChannelID, 1, now); transition == voicecall.TransitionStarted {
+				starterName := ""
+				starterAvatarURL := ""
+				if e.Member != nil {
+					starterName = e.Member.DisplayName()
+					if e.Member.User != nil {
+						starterAvatarURL = e.Member.User.AvatarURL("")
+					}
+				}
+				router.DispatchVoiceCallStarted(context.Background(), discordbot.IncomingVoiceCallStarted{
+					GuildID: e.GuildID,
+					Notice: voicecall.StartedNotice{
+						VoiceChannelName: resolveChannelName(s, e.ChannelID),
+						StarterName:      starterName,
+						StarterAvatarURL: starterAvatarURL,
+						StartedAt:        startedAt,
+					},
+				})
+			}
+		}
 	})
 }
