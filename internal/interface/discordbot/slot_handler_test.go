@@ -39,6 +39,18 @@ func TestSlotHandler_HandleMessage(t *testing.T) {
 			wantContent: "<:a:1> <:a:1> <:a:1>\n🎉 大当たり！",
 		},
 		{
+			name:        "正常系: 短縮トリガー「うすろ」でも反応する",
+			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "うすろ", MentionsBotID: false},
+			wantSent:    true,
+			wantContent: "<:a:1> <:a:1> <:a:1>\n🎉 大当たり！",
+		},
+		{
+			name:        "正常系: 「うすろ」の前後に空白があっても反応する",
+			msg:         IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "  うすろ  ", MentionsBotID: false},
+			wantSent:    true,
+			wantContent: "<:a:1> <:a:1> <:a:1>\n🎉 大当たり！",
+		},
+		{
 			name:     "異常系: トリガー文言以外には反応しない",
 			msg:      IncomingMessage{GuildID: "g1", ChannelID: "c1", Content: "keyword", MentionsBotID: false},
 			wantSent: false,

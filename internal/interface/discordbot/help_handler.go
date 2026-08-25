@@ -56,6 +56,6 @@ func helpMessage(botID, botName string) string {
 			"- スロット: 「%s」と発言する（メンション不要）とギルドのカスタム絵文字（少なければ標準絵文字）から3つ抽選する。3つ揃うと大当たり、2つ揃うと小当たり\n"+
 			"- チャンネル作成: %s `channel create <チャンネル名>` でチャンネル作成を提案する（日本語も使用可）。提案メッセージへのリアクションが必要人数（サーバーごとに管理画面で設定、デフォルト2人。提案者自身の分も含む）に達するとBotが公開テキストチャンネルを代理作成する\n"+
 			"- ヘルプ: %s `help` または %s `usage` でこの一覧を表示する",
-		name, tag, slotTriggerPhrase, tag, tag, tag,
+		name, tag, strings.Join(slotTriggerPhrases, "」「"), tag, tag, tag,
 	)
 }
