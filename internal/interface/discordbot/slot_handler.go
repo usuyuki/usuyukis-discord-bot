@@ -2,16 +2,17 @@ package discordbot
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/usuyuki/usuyukis-discord-bot/internal/domain/slot"
 	slotUC "github.com/usuyuki/usuyukis-discord-bot/internal/usecase/slot"
 )
 
-// slotTriggerPhrase はメンションなしでスロットを起動する固定トリガー文言
-const slotTriggerPhrase = "うすゆきスロット"
+// slotTriggerPhrases はメンションなしでスロットを起動する固定トリガー文言（いずれかに一致すれば反応）
+var slotTriggerPhrases = []string{"うすゆきスロット", "うすろ"}
 
-// SlotHandler は「うすゆきスロット」という発言（メンション不要）を受け、ギルドのカスタム絵文字
+// SlotHandler は「うすゆきスロット」または「うすろ」という発言（メンション不要）を受け、ギルドのカスタム絵文字
 // （少なければ標準絵文字）から3つ抽選してスロットを回すハンドラ
 type SlotHandler struct {
 	uc     *slotUC.UseCase
@@ -23,10 +24,10 @@ func NewSlotHandler(uc *slotUC.UseCase, sender MessageSender) *SlotHandler {
 	return &SlotHandler{uc: uc, sender: sender}
 }
 
-// HandleMessage は本文がちょうど"うすゆきスロット"（前後の空白は無視）に一致すればスロットを回して結果を返信する。
+// HandleMessage は本文がちょうどトリガー文言（前後の空白は無視）のいずれかに一致すればスロットを回して結果を返信する。
 // メンションは不要
 func (h *SlotHandler) HandleMessage(ctx context.Context, msg IncomingMessage) error {
-	if strings.TrimSpace(msg.Content) != slotTriggerPhrase {
+	if !slices.Contains(slotTriggerPhrases, strings.TrimSpace(msg.Content)) {
 		return nil
 	}
 
