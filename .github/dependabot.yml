@@ -21,7 +21,7 @@ updates:
           - "*"
 
   - package-ecosystem: "github-actions"
-    directory: "/.github"
+    directory: "/"
     schedule:
       interval: "monthly"
       timezone: "Asia/Tokyo"
