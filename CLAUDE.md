@@ -63,6 +63,10 @@ Bot機能を1つ追加する際は以下の順序で実装する（詳細は [ad
 - `900_build.yml`: mainブランチへのpush時に `linux/amd64,linux/arm64` のマルチアーキテクチャDockerイメージをビルドし `ghcr.io/usuyuki/usuyukis-discord-bot` へpushする。ビルド結果は `secrets.NOTIFY_DISCORD_WEBHOOK` 宛にDiscord通知される。マルチアーキビルドは `Dockerfile` 側のクロスコンパイル方式（QEMUエミュレーション回避、詳細は [adr/0009_docker_build_cross_compile.md](./adr/0009_docker_build_cross_compile.md)）で高速化している。実行ステージは `FROM scratch`（CA証明書とtzdataを持ち込み、非root実行。詳細は [adr/0018_runtime_image_scratch.md](./adr/0018_runtime_image_scratch.md)）。
 - `internal/infrastructure/postgres` に実DBを使うテストを追加した場合は、`100_test.yml` にPostgreSQLサービスコンテナを追加すること（現状はテストファイルがなくDB不要のため未設定）。
 
+## Docker Compose
+
+`compose.yml` で使う外部イメージのタグはメジャーバージョンまでで指定する（例: `postgres:16-alpine`）。マイナー/パッチバージョンまでの固定はできる限り避け、`docker compose pull` 時にセキュリティ修正などのマイナー/パッチ更新が自動で取り込まれるようにする。自前の `bot` イメージは `BOT_IMAGE_TAG` で切り替えるため対象外。
+
 ## コメント方針
 
 - 作成した関数にはコメントを入れて何をしているかを書く
