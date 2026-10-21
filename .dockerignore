@@ -1,0 +1,7 @@
+# .envの秘密情報をビルドコンテキスト・レイヤーに含めないため
+.env
+.git
+.github
+.claude
+/bot
+/dist/
