@@ -17,7 +17,8 @@ COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /usr/share/zoneinfo /usr/share/zoneinfo
 WORKDIR /app
 COPY --from=build /out/bot ./bot
-COPY --from=build /src/migrations ./migrations
+# 非rootで読めるようにする。444だとディレクトリに実行ビットが付かず中を読めない
+COPY --from=build --chmod=a+rX /src/migrations ./migrations
 # 65534 = nobody（scratchに/etc/passwdが無いため数値指定）
 USER 65534:65534
 ENTRYPOINT ["/app/bot"]
